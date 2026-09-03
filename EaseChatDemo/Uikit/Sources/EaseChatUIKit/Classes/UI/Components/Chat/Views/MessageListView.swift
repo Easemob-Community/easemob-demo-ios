@@ -498,6 +498,106 @@ public let MessageInputBarHeight = CGFloat(52)
             self.inputBar.hiddenInput()
         }
     }
+
+    //MARK: - Overridable data APIs
+    //Declared in the class body(rather than the `IMessageListViewDriver` extension)so that subclasses outside this module can override them.
+    open func insertMessages(messages: [ChatMessage]) {
+        self.messageList.refreshControl?.endRefreshing()
+        if self.showType == .thread {
+            self.messages.append(contentsOf: messages.map({
+                self.convertMessage(message: $0)
+            }))
+            self.messageList.reloadData()
+        } else {
+            let pullBeforeMessageId = self.messages.first?.message.messageId ?? ""
+            self.messages.insert(contentsOf: messages.map({
+                self.convertMessage(message: $0)
+            }), at: 0)
+            self.messageList.reloadData()
+            if let beforeIndex = self.messages.firstIndex(where: { $0.message.messageId == pullBeforeMessageId }) {
+                self.messageList.scrollToRow(at: IndexPath(row: beforeIndex, section: 0), at: .top, animated: false)
+            }
+
+        }
+    }
+
+    open var firstMessageId: String {
+        self.messages.first?.message.messageId ?? ""
+    }
+
+    open func refreshMessages(messages: [ChatMessage]) {
+        self.messageList.refreshControl?.endRefreshing()
+        self.messages = messages.map({
+            self.convertMessage(message: $0)
+        })
+        self.messageList.reloadData()
+        if self.showType == .thread {
+            if !self.threadMessagesLoadFinished {
+                return
+            }
+        }
+        if self.messages.count > 1 {
+            if self.showType == .history {
+                let firstIndexPath = IndexPath(row: 0, section: 0)
+                self.messageList.scrollToRow(at: firstIndexPath, at: .top, animated: true)
+            } else {
+                if self.showType == .normal {
+                    let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
+                    if lastIndexPath.row >= 0 {
+                        self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: false)
+                    }
+                }
+            }
+        }
+    }
+
+    open func showMessage(message: ChatMessage) {
+        self.showMessageImpl(message: message)
+    }
+
+    /// Shared implementation of ``showMessage(message:)``.
+    @objc open func showMessageImpl(message: ChatMessage) {
+        if self.showType == .thread {
+            if !self.threadMessagesLoadFinished {
+                return
+            }
+        }
+        if message.direction == .send {
+            self.replyId = ""
+        }
+        if message.direction == .send {
+            self.replyBar.isHidden = true
+        }
+        self.messageList.refreshControl?.endRefreshing()
+        self.messages.append(self.convertMessage(message: message))
+        let scrolledBottom = self.scrolledBottom
+        self.messageList.reloadData()
+        if self.messages.count > 1 {
+            if message.direction == .send {
+                let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
+                if lastIndexPath.row > 0 {
+                    self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
+                }
+                if self.moreMessagesCount > 0 {
+                    self.moreMessagesCount = 0
+                    for handler in self.eventHandlers.allObjects {
+                        handler.onMoreMessagesClicked()
+                    }
+                }
+            } else {
+                if scrolledBottom {
+                    let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
+                    if lastIndexPath.row > 0 {
+                        self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
+                    }
+                } else {
+                    self.moreMessagesCount += 1
+                    self.moreMessages.setTitle("\(self.moreMessagesCount) "+"new messages".chat.localize, for: .normal)
+                }
+            }
+
+        }
+    }
 }
 
 extension MessageListView: ThemeSwitchProtocol {
@@ -889,58 +989,7 @@ extension MessageListView: IMessageListViewDriver {
     public var replyMessageId: String {
         self.replyId
     }
-    
-    public func insertMessages(messages: [ChatMessage]) {
-        self.messageList.refreshControl?.endRefreshing()
-        if self.showType == .thread {
-            self.messages.append(contentsOf: messages.map({
-                self.convertMessage(message: $0)
-            }))
-            self.messageList.reloadData()
-        } else {
-            let pullBeforeMessageId = self.messages.first?.message.messageId ?? ""
-            self.messages.insert(contentsOf: messages.map({
-                self.convertMessage(message: $0)
-            }), at: 0)
-            self.messageList.reloadData()
-            if let beforeIndex = self.messages.firstIndex(where: { $0.message.messageId == pullBeforeMessageId }) {
-                self.messageList.scrollToRow(at: IndexPath(row: beforeIndex, section: 0), at: .top, animated: false)
-            }
-            
-        }
-    }
-    
-    
-    public var firstMessageId: String {
-        self.messages.first?.message.messageId ?? ""
-    }
-    
-    public func refreshMessages(messages: [ChatMessage]) {
-        self.messageList.refreshControl?.endRefreshing()
-        self.messages = messages.map({
-            self.convertMessage(message: $0)
-        })
-        self.messageList.reloadData()
-        if self.showType == .thread {
-            if !self.threadMessagesLoadFinished {
-                return
-            }
-        }
-        if self.messages.count > 1 {
-            if self.showType == .history {
-                let firstIndexPath = IndexPath(row: 0, section: 0)
-                self.messageList.scrollToRow(at: firstIndexPath, at: .top, animated: true)
-            } else {
-                if self.showType == .normal {
-                    let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                    if lastIndexPath.row >= 0 {
-                        self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: false)
-                    }
-                }
-            }
-        }
-    }
-    
+
     public func updateAudioMessageStatus(message: ChatMessage, play: Bool) {
         if let index = self.messages.firstIndex(where: { $0.message.messageId == message.messageId }) {
             if let entity = self.messages[safe: index] {
@@ -1063,50 +1112,7 @@ extension MessageListView: IMessageListViewDriver {
             return .failure
         }
     }
-    
-    public func showMessage(message: ChatMessage) {
-        if self.showType == .thread {
-            if !self.threadMessagesLoadFinished {
-                return
-            }
-        }
-        if message.direction == .send {
-            self.replyId = ""
-        }
-        if message.direction == .send {
-            self.replyBar.isHidden = true
-        }
-        self.messageList.refreshControl?.endRefreshing()
-        self.messages.append(self.convertMessage(message: message))
-        let scrolledBottom = self.scrolledBottom
-        self.messageList.reloadData()
-        if self.messages.count > 1 {
-            if message.direction == .send {
-                let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                if lastIndexPath.row > 0 {
-                    self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
-                }
-                if self.moreMessagesCount > 0 {
-                    self.moreMessagesCount = 0
-                    for handler in self.eventHandlers.allObjects {
-                        handler.onMoreMessagesClicked()
-                    }
-                }
-            } else {
-                if scrolledBottom {
-                    let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                    if lastIndexPath.row > 0 {
-                        self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
-                    }
-                } else {
-                    self.moreMessagesCount += 1
-                    self.moreMessages.setTitle("\(self.moreMessagesCount) "+"new messages".chat.localize, for: .normal)
-                }
-            }
-            
-        }
-    }
-    
+
     @objc open func scrollToBottom() {
         let bottomOffset = CGPoint(x: 0, y: self.messageList.contentSize.height - self.messageList.bounds.size.height + self.messageList.contentInset.bottom + MessageInputBarHeight)
         self.messageList.setContentOffset(bottomOffset, animated: true)

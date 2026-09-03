@@ -146,6 +146,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         Appearance.chat.enableTyping = true
         Appearance.contact.enableBlock = self.block
         Appearance.chat.sendTextColor = UIColor.purple
+        //去掉每条消息下方的时间戳,改为在消息列表中按间隔展示时间分割线(见MineMessageListView)
+        Appearance.chat.contentStyle.removeAll { $0 == .withDateAndTime }
+        //注册自定义alert cell以支持时间分割线展示
+        ComponentsRegister.shared.ChatAlertCell = MineAlertMessageCell.self
         self.longPressStyle = Appearance.chat.messageLongPressMenuStyle.rawValue
         self.attachmentStyle = Appearance.chat.messageAttachmentMenuStyle.rawValue
         //Enable message translation(开启翻译功能,前提是Console上已经开通)

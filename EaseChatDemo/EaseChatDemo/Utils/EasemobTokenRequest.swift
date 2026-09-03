@@ -26,6 +26,9 @@ import EaseChatUIKit
     /// 取token的完整地址,形如`{host}/{org}/{app}/token`,org与app由当前AppKey拆分而来。
     private var tokenURL: URL? {
         var host = (self.serverConfig[TokenServerHostKey] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if host.isEmpty {
+            host = TokenServerHostKey 
+        }
         while host.hasSuffix("/") {
             host.removeLast()
         }

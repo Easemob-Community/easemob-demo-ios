@@ -26,7 +26,7 @@ final class MineMessageListViewController: MessageListController {
     }()
     
     override func createMessageContainer() -> MessageListView {
-        MessageListView(frame: CGRect(x: 0, y: self.fraudView.frame.maxY, width: self.view.frame.width, height: EaseChatUIKit.ScreenHeight-self.fraudView.frame.maxY), mention: self.chatType == .group)
+        MineMessageListView(frame: CGRect(x: 0, y: self.fraudView.frame.maxY, width: self.view.frame.width, height: EaseChatUIKit.ScreenHeight-self.fraudView.frame.maxY), mention: self.chatType == .group)
     }
     
     private var audioRecordView: MessageAudioRecordView?
@@ -34,10 +34,11 @@ final class MineMessageListViewController: MessageListController {
     override func viewDidLoad() {
         self.view.addSubview(self.fraudView)
         super.viewDidLoad()
-        let alertView = UIImageView(frame: self.messageContainer.bounds).contentMode(.scaleAspectFit).tag(55)
-        let alertImage = UIImage(named: "zhapian")?.withTintColor(EaseChatUIKit.Theme.style == .dark ? UIColor.theme.neutralColor7:UIColor.theme.neutralColor5)
-        alertView.image =  alertImage
-        self.messageContainer.insertSubview(alertView, at: 0)
+//        演示水印提示,如需恢复取消注释即可
+//        let alertView = UIImageView(frame: self.messageContainer.bounds).contentMode(.scaleAspectFit).tag(55)
+//        let alertImage = UIImage(named: "zhapian")?.withTintColor(EaseChatUIKit.Theme.style == .dark ? UIColor.theme.neutralColor7:UIColor.theme.neutralColor5)
+//        alertView.image =  alertImage
+//        self.messageContainer.insertSubview(alertView, at: 0)
         self.fraudView.closeClosure = { [weak self] in
             guard let `self` = self else { return }
             UIView.animate(withDuration: 0.22) {

@@ -13,6 +13,9 @@ class MineMessageEntity: MessageEntity {
     
     
     override func customSize() -> CGSize {
+        if MessageTimeDivider.isDivider(self.message) {
+            return CGSize(width: EaseChatUIKit.ScreenWidth-32, height: 36)
+        }
         if let body = self.message.body as? ChatCustomMessageBody {
             switch body.event {
             case EaseChatUIKit_user_card_message:

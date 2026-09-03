@@ -73,6 +73,9 @@
 		05FAF2B72EF1583400B7F56E /* person-info.html in Resources */ = {isa = PBXBuildFile; fileRef = 05FAF2B62EF1583400B7F56E /* person-info.html */; };
 		05FE6C2A2B9A9F160030A983 /* ThemesSettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05FE6C292B9A9F160030A983 /* ThemesSettingViewController.swift */; };
 		05FE6C2C2B9AADD00030A983 /* ColorHueSettingCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05FE6C2B2B9AADD00030A983 /* ColorHueSettingCell.swift */; };
+		276C75A374F0B38FDAD4A3D2 /* MineAlertMessageCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 616F4E65BD8F57F3A8C539C0 /* MineAlertMessageCell.swift */; };
+		2C4C0DDDE074A930AD7F17E1 /* MessageTimeDivider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83256028E9877699B7F70095 /* MessageTimeDivider.swift */; };
+		A8F73AD1CAD6845A23D6A4BA /* MineMessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFAB45AADDECC350D56B4D9 /* MineMessageListView.swift */; };
 		C00458792DEFF77800A0FBBD /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = C00458782DEFF77800A0FBBD /* Config.plist */; };
 		CA2A158F7FDF2AD13A592148 /* Pods_EaseChatDemo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC7D18B2AA31BFE05D118ADA /* Pods_EaseChatDemo.framework */; };
 /* End PBXBuildFile section */
@@ -177,8 +180,11 @@
 		05FE6C292B9A9F160030A983 /* ThemesSettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemesSettingViewController.swift; sourceTree = "<group>"; };
 		05FE6C2B2B9AADD00030A983 /* ColorHueSettingCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHueSettingCell.swift; sourceTree = "<group>"; };
 		1771B88A5DA2D3168C3039A3 /* Pods-EaseChatDemo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EaseChatDemo.release.xcconfig"; path = "Target Support Files/Pods-EaseChatDemo/Pods-EaseChatDemo.release.xcconfig"; sourceTree = "<group>"; };
+		616F4E65BD8F57F3A8C539C0 /* MineAlertMessageCell.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MineAlertMessageCell.swift; sourceTree = "<group>"; };
+		83256028E9877699B7F70095 /* MessageTimeDivider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageTimeDivider.swift; sourceTree = "<group>"; };
 		9B38F4753F4BED0BA45ED18F /* Pods-EaseChatDemo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EaseChatDemo.debug.xcconfig"; path = "Target Support Files/Pods-EaseChatDemo/Pods-EaseChatDemo.debug.xcconfig"; sourceTree = "<group>"; };
 		C00458782DEFF77800A0FBBD /* Config.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config.plist; sourceTree = "<group>"; };
+		DEFAB45AADDECC350D56B4D9 /* MineMessageListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MineMessageListView.swift; sourceTree = "<group>"; };
 		EC7D18B2AA31BFE05D118ADA /* Pods_EaseChatDemo.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_EaseChatDemo.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -343,6 +349,7 @@
 				05E5A1C62B9997FC00955DD1 /* DemoLanguage.swift */,
 				05B161B62BB664B400917245 /* EaseMobHUD.swift */,
 				053953B12C1142BD0068981C /* PresenceManager.swift */,
+				83256028E9877699B7F70095 /* MessageTimeDivider.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -384,6 +391,8 @@
 			isa = PBXGroup;
 			children = (
 				05CDAC562D5EEA880033E088 /* FraudAlertView.swift */,
+				DEFAB45AADDECC350D56B4D9 /* MineMessageListView.swift */,
+				616F4E65BD8F57F3A8C539C0 /* MineAlertMessageCell.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -652,6 +661,9 @@
 				0544D4432C3BC2C000E36B08 /* MineMessageEntity.swift in Sources */,
 				057227612B97FAF200AA866D /* AboutEasemobController.swift in Sources */,
 				0544D43E2C3BC24000E36B08 /* ImagePreviewController.swift in Sources */,
+				2C4C0DDDE074A930AD7F17E1 /* MessageTimeDivider.swift in Sources */,
+				A8F73AD1CAD6845A23D6A4BA /* MineMessageListView.swift in Sources */,
+				276C75A374F0B38FDAD4A3D2 /* MineAlertMessageCell.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
