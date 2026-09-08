@@ -146,6 +146,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         Appearance.chat.enableTyping = true
         Appearance.contact.enableBlock = self.block
         Appearance.chat.sendTextColor = UIColor.purple
+        Appearance.chat.contentStyle.removeAll { $0 == .withDateAndTime }
         self.longPressStyle = Appearance.chat.messageLongPressMenuStyle.rawValue
         self.attachmentStyle = Appearance.chat.messageAttachmentMenuStyle.rawValue
         //Enable message translation(开启翻译功能,前提是Console上已经开通)
