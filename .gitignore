@@ -78,3 +78,6 @@ EaseChatDemo/EaseChatDemo/CustomConstants/PublicDefines.swift
 
 # vscode
 .vscode/
+
+# sweetpad
+buildServer.json
