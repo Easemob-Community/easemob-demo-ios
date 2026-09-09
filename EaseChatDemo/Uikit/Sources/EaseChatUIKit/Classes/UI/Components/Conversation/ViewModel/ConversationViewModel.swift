@@ -105,7 +105,7 @@ public let disturb_change = "EaseUIKit_do_not_disturb_changed"
         if let conversation = self.service?.loadIfNotExistCreate(conversationId: profile.id,type: type) {
             if let info = self.mapper(objects: [conversation]).first,!info.id.isEmpty {
                 if conversation.type == .groupChat {
-                    let content = "Group".chat.localize + " \(text) " + "has been created.".chat.localize
+                    let content = "Group".chat.localize + "has been created.".chat.localize + " \(text) " + "join group".chat.localize
                     let message = self.welcomeMessage(conversationId: info.id,text: content)
                     message.chatType = .groupChat
                     conversation.insert(message, error: nil)
@@ -119,7 +119,7 @@ public let disturb_change = "EaseUIKit_do_not_disturb_changed"
     }
     
     @objc open func welcomeMessage(conversationId: String,text: String) -> ChatMessage {
-        ChatMessage(conversationID: conversationId, body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: text.isEmpty ? nil:["something":text])
+        ChatMessage(conversationID: conversationId, body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: text.isEmpty ? nil:["something":text, "threadName":""])
     }
     
     @objc open func destroyed() {

@@ -98,7 +98,8 @@
 "Reach content character limit." = "超出最大字符数限制";
 "Group was disabled" = "此群已被禁用";
 "Group" = "群组";
-"has been created." = "创建成功";
+"has been created." = "已创建";
+"join group" = "加入群聊";
 "Save" = "保存";
 "Please input" = "请输入";
 "New Message" = "新消息";
