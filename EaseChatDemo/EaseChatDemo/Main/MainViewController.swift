@@ -104,9 +104,9 @@ final class MainViewController: UITabBarController {
         nav3.interactivePopGestureRecognizer?.delegate = self
         self.viewControllers = [nav1, nav2,nav3]
         self.view.backgroundColor = UIColor.theme.neutralColor98
-        self.tabBar.backgroundColor = UIColor.theme.barrageDarkColor8
-        self.tabBar.barTintColor = UIColor.theme.barrageDarkColor8
-        self.tabBar.isTranslucent = true
+        self.tabBar.backgroundColor = UIColor.theme.barrageDarkColor100
+        self.tabBar.barTintColor = UIColor.theme.barrageDarkColor100
+        self.tabBar.isTranslucent = false
         self.tabBar.barStyle = .default
         self.tabBar.backgroundImage = UIImage()
         self.tabBar.shadowImage = UIImage()
@@ -129,9 +129,14 @@ extension MainViewController: UIGestureRecognizerDelegate {
 extension MainViewController: EaseChatUIKit.ThemeSwitchProtocol {
     
     func switchTheme(style: EaseChatUIKit.ThemeStyle) {
-        self.tabBar.barTintColor = style == .dark ? UIColor.theme.barrageLightColor8:UIColor.theme.barrageDarkColor8
+        self.tabBar.barTintColor = style == .dark ? UIColor.theme.barrageLightColor100:UIColor.theme.barrageDarkColor100
         self.view.backgroundColor = style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
-        self.tabBar.backgroundColor = style == .dark ? UIColor.theme.barrageLightColor8:UIColor.theme.barrageDarkColor8
+        self.tabBar.backgroundColor = style == .dark ? UIColor.theme.barrageLightColor100:UIColor.theme.barrageDarkColor100
+        let appearance = self.tabBar.standardAppearance
+        appearance.backgroundEffect = nil
+        appearance.backgroundColor = self.tabBar.backgroundColor
+        self.tabBar.standardAppearance = appearance
+        self.tabBar.scrollEdgeAppearance = appearance
         
         var chatsImage = UIImage(named: "tabbar_chats")
         chatsImage = chatsImage?.withTintColor(style == .dark ? UIColor.theme.neutralColor4:UIColor.theme.neutralColor5, renderingMode: .alwaysOriginal)
