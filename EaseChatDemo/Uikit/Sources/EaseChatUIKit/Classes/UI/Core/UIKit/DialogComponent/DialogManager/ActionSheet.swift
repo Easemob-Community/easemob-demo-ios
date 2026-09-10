@@ -210,4 +210,131 @@ extension ActionSheet: UITableViewDelegate,UITableViewDataSource {
     
 }
 
+/// Compact action content used by DialogManager's anchored overload.
+/// Kept separate from ActionSheet so bottom sheets retain their cancel button and drag indicator.
+final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
+    private let items: [ActionSheetItemProtocol]
+    private let menuList = UITableView(frame: .zero, style: .plain)
+    private let arrow = CAShapeLayer()
+    private let menuColor = UIColor(white: 0.3, alpha: 1)
+    private let arrowHeight: CGFloat = 8
+    private var font: UIFont { UIFont.preferredFont(forTextStyle: .body) }
+
+    var actionClosure: ((ActionSheetItemProtocol) -> Void)?
+    var dismissClosure: (() -> Void)?
+    var arrowX: CGFloat = 0 {
+        didSet { if arrowX != oldValue { setNeedsLayout() } }
+    }
+
+    init(items: [ActionSheetItemProtocol]) {
+        self.items = items
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        accessibilityViewIsModal = true
+        arrow.fillColor = menuColor.cgColor
+        layer.addSublayer(arrow)
+        menuList.dataSource = self
+        menuList.delegate = self
+        menuList.backgroundColor = menuColor
+        menuList.separatorColor = UIColor(white: 1, alpha: 0.12)
+        menuList.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 0)
+        menuList.tableFooterView = UIView()
+        menuList.contentInsetAdjustmentBehavior = .never
+        menuList.estimatedRowHeight = 0
+        menuList.layer.cornerRadius = 6
+        menuList.clipsToBounds = true
+        menuList.bounces = false
+        menuList.indicatorStyle = .white
+        addSubview(menuList)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let titleWidth = items.map { ($0.title as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        let width = min(max(168, ceil(titleWidth) + 72), min(280, size.width))
+        let height = items.reduce(arrowHeight) { $0 + rowHeight(for: $1, width: width) }
+        return CGSize(width: width, height: height)
+    }
+
+    private func rowHeight(for item: ActionSheetItemProtocol, width: CGFloat) -> CGFloat {
+        let textHeight = (item.title as NSString).boundingRect(
+            with: CGSize(width: max(1, width - 72), height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font], context: nil
+        ).height
+        return max(52, ceil(textHeight) + 24)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let listFrame = CGRect(x: 0, y: arrowHeight, width: bounds.width, height: max(0, bounds.height - arrowHeight))
+        if menuList.frame.size != listFrame.size {
+            menuList.frame = listFrame
+            menuList.reloadData()
+        } else {
+            menuList.frame = listFrame
+        }
+        menuList.isScrollEnabled = sizeThatFits(bounds.size).height > bounds.height
+        let x = min(max(arrowX, 14), bounds.width - 14)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: x - 8, y: arrowHeight))
+        path.addLine(to: CGPoint(x: x, y: 0))
+        path.addLine(to: CGPoint(x: x + 8, y: arrowHeight))
+        path.close()
+        arrow.path = path.cgPath
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
+            menuList.reloadData()
+            setNeedsLayout()
+            superview?.superview?.setNeedsLayout()
+        }
+    }
+
+    override func accessibilityPerformEscape() -> Bool {
+        dismissClosure?()
+        return true
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        items.count
+    }
+
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        rowHeight(for: items[indexPath.row], width: tableView.bounds.width)
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "ActionMenuCell") ?? UITableViewCell(style: .default, reuseIdentifier: "ActionMenuCell")
+        let item = items[indexPath.row]
+        let color: UIColor = item.type == .destructive ? UIColor.theme.errorColor6 : .white
+        var content = cell.defaultContentConfiguration()
+        content.text = item.title
+        content.textProperties.font = font
+        content.textProperties.color = color
+        content.textProperties.numberOfLines = 0
+        content.image = item.image?.withTintColor(color, renderingMode: .alwaysOriginal)
+        content.imageProperties.maximumSize = CGSize(width: 24, height: 24)
+        content.imageToTextPadding = 12
+        content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
+        cell.contentConfiguration = content
+        cell.backgroundColor = menuColor
+        let selectedBackground = UIView()
+        selectedBackground.backgroundColor = UIColor(white: 1, alpha: 0.12)
+        cell.selectedBackgroundView = selectedBackground
+        cell.accessibilityLabel = item.title
+        cell.accessibilityTraits = .button
+        return cell
+    }
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        isUserInteractionEnabled = false
+        actionClosure?(items[indexPath.row])
+    }
+}
 

@@ -179,7 +179,8 @@ extension ConversationListController {
     @objc open func rightActions(indexPath: IndexPath) {
         switch indexPath.row {
         case 0:
-            DialogManager.shared.showActions(actions: Appearance.conversation.listMoreActions) { item in
+            let sourceView: UIView = self.navigation.rightItems.cellForItem(at: indexPath) ?? self.navigation.rightItems
+            DialogManager.shared.showActions(actions: Appearance.conversation.listMoreActions, sourceView: sourceView) { item in
                 switch item.tag {
                 case "SelectContacts": self.selectContact()
                 case "AddContact": self.addContact()

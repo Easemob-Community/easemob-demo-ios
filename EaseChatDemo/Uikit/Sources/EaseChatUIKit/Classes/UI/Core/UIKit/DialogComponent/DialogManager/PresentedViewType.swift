@@ -9,6 +9,12 @@ import Foundation
 
 /// presentedView setting
 public struct PresentedViewComponent {
+    /// Optional anchor for a compact menu. Other dialogs retain their destination layout.
+    public weak var sourceView: UIView?
+
+    /// Color of the tappable area outside the dialog.
+    public var backgroundColor: UIColor = UIColor.theme.barrageLightColor2
+
     /// presentedView的size
     public var contentSize: CGSize
 

@@ -25,7 +25,7 @@ public final class PresentationController: UIPresentationController {
     private lazy var backgroundView: UIView = {
         let containerbounds = containerView?.bounds ?? UIScreen.main.bounds
         let backgroundView = UIView(frame: containerbounds)
-        backgroundView.backgroundColor = UIColor.theme.barrageLightColor2
+        backgroundView.backgroundColor = component.backgroundColor
         backgroundView.alpha = 0.0
         backgroundView.isUserInteractionEnabled = true
         if component.canTapBGDismiss {
@@ -60,6 +60,18 @@ public final class PresentationController: UIPresentationController {
     }
 
     override public var frameOfPresentedViewInContainerView: CGRect {
+        if let sourceView = component.sourceView, let containerView = containerView {
+            let safeBounds = containerView.bounds.inset(by: containerView.safeAreaInsets).insetBy(dx: 8, dy: 8)
+            let sourceFrame = sourceView.convert(sourceView.bounds, to: containerView)
+            let customView = (presentedViewController as? DialogContainerViewController)?.customView
+            let preferredSize = customView?.sizeThatFits(safeBounds.size) ?? component.contentSize
+            let width = min(preferredSize.width, safeBounds.width)
+            let x = min(max(sourceFrame.maxX - width, safeBounds.minX), safeBounds.maxX - width)
+            let y = min(max(sourceFrame.maxY + 4, safeBounds.minY), safeBounds.maxY - min(60, safeBounds.height))
+            let height = min(preferredSize.height, safeBounds.maxY - y)
+            (customView as? ActionMenu)?.arrowX = sourceFrame.midX - x
+            return CGRect(x: x, y: y, width: width, height: height)
+        }
         let containerbounds = containerView?.bounds ?? UIScreen.main.bounds
         let containerWidth = containerbounds.width
         let containerHeight = containerbounds.height
@@ -78,6 +90,13 @@ public final class PresentationController: UIPresentationController {
         case let .custom(center):
             return CGRect(x: center.x - contentSize.width / 2, y: center.y - contentSize.height / 2, width: contentSize.width, height: contentSize.height)
         }
+    }
+
+    override public func containerViewWillLayoutSubviews() {
+        super.containerViewWillLayoutSubviews()
+        guard component.sourceView != nil else { return }
+        backgroundView.frame = containerView?.bounds ?? .zero
+        presentedView?.frame = frameOfPresentedViewInContainerView
     }
 
     /// 将要弹出时添加背景按钮

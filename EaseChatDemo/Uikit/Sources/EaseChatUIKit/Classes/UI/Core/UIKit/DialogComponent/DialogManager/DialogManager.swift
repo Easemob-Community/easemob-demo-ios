@@ -49,6 +49,33 @@ import UIKit
             current?.presentViewController(vc)
         }
     }
+
+    /// Shows a compact menu below the source view, aligned to its trailing edge.
+    /// Omitting the source view (using the original overload) keeps the bottom action sheet.
+    @objc public func showActions(actions: [ActionSheetItemProtocol], sourceView: UIView, action: @escaping (ActionSheetItemProtocol) -> Void) {
+        guard !actions.isEmpty, let window = sourceView.window,
+              let current = UIViewController.currentController(with: sourceView),
+              current.presentedViewController == nil else { return }
+        let menu = ActionMenu(items: actions)
+        let size = menu.sizeThatFits(window.bounds.size)
+        menu.frame = CGRect(origin: .zero, size: size)
+        let vc = DialogContainerViewController(custom: menu, constraintsSize: size)
+        vc.presentedViewComponent?.sourceView = sourceView
+        vc.presentedViewComponent?.backgroundColor = .clear
+        vc.presentedViewComponent?.canPanDismiss = false
+        vc.presentedViewComponent?.keyboardTranslationType = .noTreatment
+        vc.presentedViewComponent?.presentTransitionType = .crossDissolve
+        vc.presentedViewComponent?.dismissTransitionType = .crossDissolve
+        menu.actionClosure = { [weak vc] item in
+            vc?.dismiss(animated: true) {
+                action(item)
+            }
+        }
+        menu.dismissClosure = { [weak vc] in
+            vc?.dismiss(animated: true)
+        }
+        current.presentViewController(vc)
+    }
     
     @objc public func showCustomDialog(customView: UIView,dismiss: Bool = true) {
         let vc = DialogContainerViewController(custom: customView,constraintsSize: customView.frame.size)

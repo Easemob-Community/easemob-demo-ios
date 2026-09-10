@@ -50,6 +50,20 @@ import UIKit
             self.view.addSubview(self.customView!)
         }
     }
+
+    override public func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if self.presentedViewComponent?.sourceView != nil {
+            self.customView?.frame = self.view.bounds
+        }
+    }
+
+    override public func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if self.presentedViewComponent?.sourceView != nil {
+            UIAccessibility.post(notification: .screenChanged, argument: self.customView)
+        }
+    }
 }
 
 extension DialogContainerViewController {
@@ -61,4 +75,3 @@ extension DialogContainerViewController {
         }
     }
 }
-
