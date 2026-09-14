@@ -238,7 +238,8 @@ let message_bubble_space = CGFloat(1)
     open override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
         if let _ = touches.first {
-            if self.editMode {
+            // An alert message can't be selected, forwarded or deleted, so it doesn't respond to the selection in edit mode.
+            if self.editMode,!self.entity.isAlertMessage {
                 self.clickAction?(.cell,self.entity)
             }
         }

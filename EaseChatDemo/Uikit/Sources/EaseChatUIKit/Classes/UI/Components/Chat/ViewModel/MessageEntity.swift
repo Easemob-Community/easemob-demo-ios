@@ -63,6 +63,18 @@ public let urlPreviewImageHeight = CGFloat(137)
     /// Text shown by the time divider. Only used when ``isTimeDivider`` is true.
     public var dividerText = ""
 
+    /// Whether the entity is an alert message that only shows tips in the message list, such as a thread tip or the time divider.
+    /// It's not a real message, so it can't be selected, forwarded or deleted.
+    public var isAlertMessage: Bool {
+        if self.isTimeDivider {
+            return true
+        }
+        if let body = self.message.body as? ChatCustomMessageBody,body.event == EaseChatUIKit_alert_message {
+            return true
+        }
+        return false
+    }
+
     public var urlPreview: URLPreviewManager.HTMLContent?
     
     public var showUserName: String {
