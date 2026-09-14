@@ -14,7 +14,7 @@ import UIKit
     }()
     
     public private(set) lazy var content: UILabel = {
-        UILabel(frame: CGRect(x: 16, y: 32, width: ScreenWidth-32, height: 16)).textAlignment(.center).backgroundColor(.clear).tag(bubbleTag)
+        UILabel(frame: CGRect(x: 16, y: 32, width: ScreenWidth-32, height: 16)).textAlignment(.center).numberOfLines(0).lineBreakMode(.byWordWrapping).backgroundColor(.clear).tag(bubbleTag)
     }()
 
     internal override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -50,15 +50,31 @@ import UIKit
     
     open override func layoutSubviews() {
         super.layoutSubviews()
-        self.time.frame = CGRect(x: 16, y: 16, width: ScreenWidth-32, height: 16)
-        self.content.frame = CGRect(x: 16, y: 32, width: ScreenWidth-32, height: 16)
+        if self.entity.isTimeDivider {
+            self.time.frame = CGRect(x: 16, y: (self.contentView.bounds.height-16)/2, width: ScreenWidth-32, height: 16)
+        } else {
+            // An alert message only shows its content, and the content sizes itself to fit the text.
+            let width = ScreenWidth-32
+            let maxHeight = max(self.contentView.bounds.height-16,16)
+            let height = min(max(self.content.sizeThatFits(CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)).height.rounded(.up),16),maxHeight)
+            self.content.frame = CGRect(x: 16, y: max((self.contentView.bounds.height-height)/2,8), width: width, height: height)
+        }
     }
-    
+
     open override func refresh(entity: MessageEntity) {
         self.checkbox.isHidden = true
         self.entity = entity
-        self.content.attributedText = entity.content
-        self.time.text = entity.message.showDate
+        if entity.isTimeDivider {
+            // Time divider only shows the centered time, the time of an alert message itself is no longer needed.
+            self.content.isHidden = true
+            self.time.isHidden = false
+            self.time.text = entity.dividerText
+        } else {
+            self.content.isHidden = false
+            self.time.isHidden = true
+            self.content.attributedText = entity.content
+        }
+        self.setNeedsLayout()
     }
     
     public override func switchTheme(style: ThemeStyle) {

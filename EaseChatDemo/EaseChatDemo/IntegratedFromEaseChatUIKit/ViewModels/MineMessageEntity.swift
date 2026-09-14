@@ -21,7 +21,8 @@ class MineMessageEntity: MessageEntity {
                 let label = UILabel().numberOfLines(0).lineBreakMode(.byWordWrapping)
                 label.attributedText = self.convertTextAttribute()
                 let size = label.sizeThatFits(CGSize(width: EaseChatUIKit.ScreenWidth-32, height: 9999))
-                return CGSize(width: EaseChatUIKit.ScreenWidth-32, height: size.height+50)
+                // The alert message only shows its content now, 16pt padding on the top and bottom is enough.
+                return CGSize(width: EaseChatUIKit.ScreenWidth-32, height: size.height+32)
             default:
                 return self.message.contentSize
             }

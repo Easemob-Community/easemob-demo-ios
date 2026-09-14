@@ -18,6 +18,15 @@ public var contactCardHeight = CGFloat(90)
 /// Alert message `default` height.
 public var alertHeight = CGFloat(30)
 
+/// Time divider `default` height.
+public var timeDividerHeight = CGFloat(28)
+
+/// The time divider repeats itself only if the interval between two adjacent messages is longer than this value(milliseconds).
+public let timeDividerInterval: Int64 = 5*60*1000
+
+/// Extension key of the message that renders a time divider in the message list.
+public let timeDividerKey = "ease_chat_uikit_time_divider"
+
 /// Limit width of the message bubble.
 public var limitBubbleWidth = CGFloat(ScreenWidth*(3/5.0))
 
@@ -47,7 +56,13 @@ public let urlPreviewImageHeight = CGFloat(137)
     }
     
     public var message: ChatMessage = ChatMessage(conversationID: "", body: ChatTextMessageBody(text: ""), ext: nil)
-    
+
+    /// Whether the entity renders a centered time divider in the message list.
+    public var isTimeDivider = false
+
+    /// Text shown by the time divider. Only used when ``isTimeDivider`` is true.
+    public var dividerText = ""
+
     public var urlPreview: URLPreviewManager.HTMLContent?
     
     public var showUserName: String {
@@ -143,7 +158,25 @@ public let urlPreviewImageHeight = CGFloat(137)
         self.cellHeight()
     }()
     
+    /// Text of the time divider that shown in front of ``message``.
+    /// Today shows `HH:mm`, yesterday shows `昨天 HH:mm`, earlier shows `M月d日 HH:mm`.
+    open func timeDividerText() -> String {
+        let messageDate = Date(timeIntervalSince1970: TimeInterval(self.message.timestamp/1000))
+        let time = messageDate.chat.dateString("HH:mm")
+        switch messageDate.chat.compareDays() {
+        case 0:
+            return time
+        case -1:
+            return "Yesterday".chat.localize+" "+time
+        default:
+            return messageDate.chat.dateString("M月d日")+" "+time
+        }
+    }
+
     open func cellHeight() -> CGFloat {
+        if self.isTimeDivider {
+            return timeDividerHeight
+        }
         if message.body.type != .custom {
             return 8+(Appearance.chat.contentStyle.contains(.withNickName) ? 28:2)+(Appearance.chat.contentStyle.contains(.withReply) ? self.replySize.height:2)+self.bubbleSize.height+(Appearance.chat.contentStyle.contains(.withDateAndTime) ? 22:6)+self.topicContentHeight()+self.reactionContentHeight()
         } else {
@@ -470,7 +503,8 @@ public let urlPreviewImageHeight = CGFloat(137)
                 let label = UILabel().numberOfLines(0).lineBreakMode(.byWordWrapping)
                 label.attributedText = self.convertTextAttribute()
                 let size = label.sizeThatFits(CGSize(width: ScreenWidth-32, height: 9999))
-                return CGSize(width: ScreenWidth-32, height: size.height+50)
+                // The alert message only shows its content now, 16pt padding on the top and bottom is enough.
+                return CGSize(width: ScreenWidth-32, height: size.height+32)
             default:
                 return self.message.contentSize
             }
@@ -1042,6 +1076,11 @@ extension ChatMessage {
     
     @objc public var alertMessageThreadId: String {
         self.ext?["threadId"] as? String ?? ""
+    }
+
+    /// Whether the message is a local time divider injected by ``MessageListView``, instead of a real one.
+    @objc public var isTimeDividerMessage: Bool {
+        self.ext?[timeDividerKey] as? Bool ?? false
     }
     
 }

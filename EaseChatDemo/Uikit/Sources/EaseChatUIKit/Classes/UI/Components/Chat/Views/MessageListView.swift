@@ -567,7 +567,7 @@ extension MessageListView: UITableViewDelegate,UITableViewDataSource {
             }
         }
         for listener in self.eventHandlers.allObjects {
-            if let entity = self.messages[safe: indexPath.row] {
+            if let entity = self.messages[safe: indexPath.row],!entity.isTimeDivider {
                 listener.onMessageVisible(entity: entity)
             }
         }
@@ -825,7 +825,7 @@ extension MessageListView: IMessageListViewDriver {
     
     
     public var dataSource: [ChatMessage] {
-        self.messages.map { $0.message }
+        self.messages.filter({ !$0.isTimeDivider }).map { $0.message }
     }
     
     public func reloadReaction(message: ChatMessage) {
@@ -890,24 +890,83 @@ extension MessageListView: IMessageListViewDriver {
         self.replyId
     }
     
+    /// Whether a time divider should be shown in front of a message.
+    /// - Parameters:
+    ///   - timestamp: Timestamp of the message that's about to be shown.
+    ///   - previousTimestamp: Timestamp of the message right before it. Pass `0` if there's no message before it.
+    /// - Returns: `true` if the divider is needed.
+    private func shouldInsertTimeDivider(timestamp: Int64, previousTimestamp: Int64) -> Bool {
+        if previousTimestamp <= 0 {
+            return true
+        }
+        if timestamp - previousTimestamp > timeDividerInterval {
+            return true
+        }
+        // Even within the interval, a divider is still needed when the two messages aren't in the same day.
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp/1000))
+        let previousDate = Date(timeIntervalSince1970: TimeInterval(previousTimestamp/1000))
+        return !Calendar.current.isDate(date, inSameDayAs: previousDate)
+    }
+
+    /// Builds an entity that renders a centered time divider.
+    /// - Parameter timestamp: Timestamp of the message that follows the divider.
+    /// - Returns: ``MessageEntity`` marked as ``MessageEntity/isTimeDivider``.
+    private func timeDividerEntity(timestamp: Int64) -> MessageEntity {
+        let entity = ComponentsRegister.shared.MessageRenderEntity.init()
+        let message = ChatMessage(conversationID: "", body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: [timeDividerKey:true])
+        message.timestamp = timestamp
+        message.localTime = timestamp
+        entity.message = message
+        entity.isTimeDivider = true
+        entity.dividerText = entity.timeDividerText()
+        return entity
+    }
+
+    /// Converts messages to entities, inserting a time divider in front of the ones that need it.
+    /// - Parameters:
+    ///   - messages: Messages ordered from old to new.
+    ///   - previousTimestamp: Timestamp of the message right before the first one. Pass `0` if there's none.
+    /// - Returns: Entities to show.
+    private func convertMessages(messages: [ChatMessage], previousTimestamp: Int64) -> [MessageEntity] {
+        var entities = [MessageEntity]()
+        var previous = previousTimestamp
+        for message in messages {
+            if self.shouldInsertTimeDivider(timestamp: message.timestamp, previousTimestamp: previous) {
+                entities.append(self.timeDividerEntity(timestamp: message.timestamp))
+            }
+            entities.append(self.convertMessage(message: message))
+            previous = message.timestamp
+        }
+        return entities
+    }
+
     public func insertMessages(messages: [ChatMessage]) {
         self.messageList.refreshControl?.endRefreshing()
+        let messages = messages.filter({ !$0.isTimeDividerMessage })
         if self.showType == .thread {
-            self.messages.append(contentsOf: messages.map({
-                self.convertMessage(message: $0)
-            }))
+            self.messages.append(contentsOf: self.convertMessages(messages: messages, previousTimestamp: self.lastRealMessageTimestamp))
             self.messageList.reloadData()
         } else {
             let pullBeforeMessageId = self.messages.first?.message.messageId ?? ""
-            self.messages.insert(contentsOf: messages.map({
-                self.convertMessage(message: $0)
-            }), at: 0)
+            var entities = self.convertMessages(messages: messages, previousTimestamp: 0)
+            // The divider in front of the current top message can be redundant now that older messages are above it.
+            if let firstReal = self.messages.first(where: { !$0.isTimeDivider }),let lastLoaded = messages.last {
+                if !self.shouldInsertTimeDivider(timestamp: firstReal.message.timestamp, previousTimestamp: lastLoaded.timestamp),self.messages.first?.isTimeDivider == true {
+                    self.messages.removeFirst()
+                }
+            }
+            self.messages.insert(contentsOf: entities, at: 0)
             self.messageList.reloadData()
             if let beforeIndex = self.messages.firstIndex(where: { $0.message.messageId == pullBeforeMessageId }) {
                 self.messageList.scrollToRow(at: IndexPath(row: beforeIndex, section: 0), at: .top, animated: false)
             }
-            
+
         }
+    }
+
+    /// Timestamp of the last real message in ``messages``, `0` if there's none.
+    private var lastRealMessageTimestamp: Int64 {
+        self.messages.last(where: { !$0.isTimeDivider })?.message.timestamp ?? 0
     }
     
     
@@ -917,9 +976,7 @@ extension MessageListView: IMessageListViewDriver {
     
     public func refreshMessages(messages: [ChatMessage]) {
         self.messageList.refreshControl?.endRefreshing()
-        self.messages = messages.map({
-            self.convertMessage(message: $0)
-        })
+        self.messages = self.convertMessages(messages: messages.filter({ !$0.isTimeDividerMessage }), previousTimestamp: 0)
         self.messageList.reloadData()
         if self.showType == .thread {
             if !self.threadMessagesLoadFinished {
@@ -1077,6 +1134,9 @@ extension MessageListView: IMessageListViewDriver {
             self.replyBar.isHidden = true
         }
         self.messageList.refreshControl?.endRefreshing()
+        if !message.isTimeDividerMessage,self.shouldInsertTimeDivider(timestamp: message.timestamp, previousTimestamp: self.lastRealMessageTimestamp) {
+            self.messages.append(self.timeDividerEntity(timestamp: message.timestamp))
+        }
         self.messages.append(self.convertMessage(message: message))
         let scrolledBottom = self.scrolledBottom
         self.messageList.reloadData()
@@ -1200,8 +1260,17 @@ extension MessageListView: IMessageListViewDriver {
     private func deleteAction(_ message: ChatMessage) {
         if let index = self.messages.firstIndex(where: { $0.message.messageId == message.messageId }) {
             self.messages.remove(at: index)
+            var deletedRows = [IndexPath(row: index, section: 0)]
+            // The divider in front of the deleted message can be redundant now.
+            if index > 0,index < self.messages.count,self.messages[index-1].isTimeDivider {
+                let previousTimestamp = self.messages[..<(index-1)].last(where: { !$0.isTimeDivider })?.message.timestamp ?? 0
+                if !self.shouldInsertTimeDivider(timestamp: self.messages[index].message.timestamp, previousTimestamp: previousTimestamp) {
+                    self.messages.remove(at: index-1)
+                    deletedRows.append(IndexPath(row: index-1, section: 0))
+                }
+            }
             self.messageList.beginUpdates()
-            self.messageList.deleteRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
+            self.messageList.deleteRows(at: deletedRows, with: .automatic)
             self.messageList.endUpdates()
         }
         var indexPaths = [IndexPath]()
