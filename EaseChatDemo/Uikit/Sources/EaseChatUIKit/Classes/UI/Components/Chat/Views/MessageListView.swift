@@ -347,7 +347,7 @@ public let MessageInputBarHeight = CGFloat(52)
         }
         NotificationCenter.default.addObserver(forName: Notification.Name("EaseChatUIKit_clean_history_messages"), object: nil, queue: .main) { [weak self] notification in
             if let conversationId = notification.object as? String {
-                if self?.messages.first?.message.conversationId ?? "" == conversationId {
+                if self?.messages.first(where: { !$0.isTimeDivider })?.message.conversationId ?? "" == conversationId {
                     self?.replyId = ""
                     self?.replyBar.isHidden = true
                     self?.messages.removeAll()
@@ -587,6 +587,11 @@ extension MessageListView: UITableViewDelegate,UITableViewDataSource {
     }
     
     private func registerMessageCell(tableView: UITableView,indexPath: IndexPath) -> MessageCell? {
+        // A time divider is rendered by the alert cell whatever its message carries, so that it can never
+        // be drawn as a real message.
+        if self.messages[safe: indexPath.row]?.isTimeDivider == true {
+            return self.getMessageCell(cellClass: ComponentsRegister.shared.ChatAlertCell, towards: .left, identifier: "EaseChatUIKit.ChatAlertCell")
+        }
         if let message = self.messages[safe: indexPath.row]?.message {
             let towards: BubbleTowards = message.direction.rawValue == 0 ? .right:.left
             switch message.body.type {
@@ -914,6 +919,8 @@ extension MessageListView: IMessageListViewDriver {
     private func timeDividerEntity(timestamp: Int64) -> MessageEntity {
         let entity = ComponentsRegister.shared.MessageRenderEntity.init()
         let message = ChatMessage(conversationID: "", body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: [timeDividerKey:true])
+        // A unique id, so that the lookups which filter ``messages`` by message id can never match a divider.
+        message.messageId = "\(timeDividerKey)_\(UUID().uuidString)"
         message.timestamp = timestamp
         message.localTime = timestamp
         entity.message = message
@@ -947,7 +954,7 @@ extension MessageListView: IMessageListViewDriver {
             self.messages.append(contentsOf: self.convertMessages(messages: messages, previousTimestamp: self.lastRealMessageTimestamp))
             self.messageList.reloadData()
         } else {
-            let pullBeforeMessageId = self.messages.first?.message.messageId ?? ""
+            let pullBeforeMessageId = self.firstRealMessageId
             var entities = self.convertMessages(messages: messages, previousTimestamp: 0)
             // The divider in front of the current top message can be redundant now that older messages are above it.
             if let firstReal = self.messages.first(where: { !$0.isTimeDivider }),let lastLoaded = messages.last {
@@ -968,10 +975,16 @@ extension MessageListView: IMessageListViewDriver {
     private var lastRealMessageTimestamp: Int64 {
         self.messages.last(where: { !$0.isTimeDivider })?.message.timestamp ?? 0
     }
-    
-    
+
+    /// Id of the first real message in ``messages``, `""` if there's none.
+    /// It's used as the anchor of paging, so a time divider must never be the answer.
+    private var firstRealMessageId: String {
+        self.messages.first(where: { !$0.isTimeDivider })?.message.messageId ?? ""
+    }
+
+
     public var firstMessageId: String {
-        self.messages.first?.message.messageId ?? ""
+        self.firstRealMessageId
     }
     
     public func refreshMessages(messages: [ChatMessage]) {
@@ -1042,7 +1055,8 @@ extension MessageListView: IMessageListViewDriver {
     
     
     public func updateMessageStatus(message: ChatMessage, status: ChatMessageStatus) {
-        if let index = self.messages.firstIndex(where: { $0.message.localTime == message.localTime }) {
+        // A time divider reuses the timestamp of the message behind it, so it must never be treated as that message.
+        if let index = self.messages.firstIndex(where: { !$0.isTimeDivider && $0.message.localTime == message.localTime }) {
             self.messages[safe: index]?.message = message
             self.messages[safe: index]?.state = status
             if let cell = self.messageList.cellForRow(at: IndexPath(row: index, section: 0)) as? MessageCell {

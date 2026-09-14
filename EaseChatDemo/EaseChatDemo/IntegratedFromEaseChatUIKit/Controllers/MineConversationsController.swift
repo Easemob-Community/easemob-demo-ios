@@ -209,6 +209,7 @@ final class MineConversationsController: ConversationListController {
                 self?.fetchGroupAvatar(groupId: group.groupId)
             } else {
                 consoleLogInfo("create group error:\(error?.errorDescription ?? "")", type: .error)
+                self?.showToast(toast: error?.errorDescription ?? "")
             }
         })
     }
