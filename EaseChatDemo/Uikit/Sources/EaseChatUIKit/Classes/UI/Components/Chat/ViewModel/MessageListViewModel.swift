@@ -772,8 +772,28 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
         self.messageAvatarLongPressed(profile: profile)
     }
     
+    /**
+     Mentions the message sender in the input box on his avatar long pressed.
+
+     It feeds the same path the participant picker uses, so what the field gets is a mention block
+     that carries the filled profile with the ``ChatUserProfileProtocol`` attribute, and it is what
+     ``willSendMessage(attributeText:)`` collects into the `em_at_list` of the extension.
+
+     Only a group supports a mention, and the current user is not mentionable — the picker removes
+     himself as well, so long pressing your own avatar does nothing.
+
+     - Parameter profile: ``ChatUserProfileProtocol``
+     */
     @objc open func messageAvatarLongPressed(profile: ChatUserProfileProtocol) {
-        
+        if self.chatType != .group {
+            return
+        }
+        if profile.id.isEmpty || profile.id == ChatUIKitContext.shared?.currentUserId {
+            return
+        }
+        // The message may carry a profile which only knows the id, so prefer the cached one for the nickname.
+        let user = ChatUIKitContext.shared?.userCache?[profile.id] ?? profile
+        self.updateMentionIds(profile: user, type: .add)
     }
     
     public func onInputBoxEventsOccur(action type: MessageInputBarActionType, attributeText: NSAttributedString?) {
@@ -816,7 +836,9 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
         }
         attributeText.enumerateAttributes(in: NSRange(location: 0, length: attributeText.length), options: []) { (attributes, blockRange, stop) in
             let key = NSAttributedString.Key("mentionInfo")
-            if let mentionInfo = attributes[key] as? ChatUserProfileProtocol {
+            // The field hands out one run per edit, so a single mention can be met more than once here and
+            // `em_at_list` must not list the same user twice.
+            if let mentionInfo = attributes[key] as? ChatUserProfileProtocol, !mentionIds.contains(mentionInfo.id) {
                 mentionIds.append(mentionInfo.id)
             }
         }

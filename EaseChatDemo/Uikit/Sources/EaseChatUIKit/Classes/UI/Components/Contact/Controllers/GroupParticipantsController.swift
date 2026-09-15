@@ -282,6 +282,7 @@ import UIKit
                     }
                 } else {
                     consoleLogInfo("GroupParticipantsController fetch error:\(error?.errorDescription ?? "")", type: .error)
+                    showToast(toast: error?.errorDescription ?? "")
                 }
                 
                 self.setupTitle()

@@ -742,6 +742,10 @@ extension MessageListView: UITableViewDelegate,UITableViewDataSource {
                 }
             }
         } else {
+            // No message can be composed while the list is in edit mode, so the avatar doesn't mention either.
+            if self.editMode {
+                return
+            }
             if ComponentViewsActionHooker.shared.chat.avatarLongPressed != nil {
                 if let user = entity.message.user {
                     ComponentViewsActionHooker.shared.chat.avatarLongPressed?(user)
@@ -1041,14 +1045,23 @@ extension MessageListView: IMessageListViewDriver {
                 nickName = user.id
             }
         }
-        let newString = NSAttributedString(string: "@\(nickName) ", attributes: [.font: self.inputBar.inputField.font!, key: user, .foregroundColor: (Theme.style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1)])
+        let font = self.inputBar.inputField.font ?? UIFont.theme.bodyLarge
+        let color = Theme.style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1
+        let newString = NSAttributedString(string: "@\(nickName)", attributes: [.font: font, key: user, .foregroundColor: color])
+        // The space behind the mention is a plain run on purpose. The caret takes the attributes of the
+        // character in front of it, so a space inside the mention run stamps `mentionInfo` on everything
+        // typed next, and ``MessageListViewModel.willSendMessage(attributeText:)`` then reads that text
+        // back as further mentions of the same user.
+        let space = NSAttributedString(string: " ", attributes: [.font: font, .foregroundColor: color])
         if result.length > 0 && result.string.hasSuffix("@") {
             result.deleteCharacters(in: NSRange(location: result.length - 1, length: 1))
         }
         result.append(newString)
-        let old = self.inputBar.inputField.typingAttributes
+        result.append(space)
+        var typingAttributes = self.inputBar.inputField.typingAttributes
+        typingAttributes.removeValue(forKey: key)
         self.inputBar.inputField.attributedText = result
-        self.inputBar.inputField.typingAttributes = old
+        self.inputBar.inputField.typingAttributes = typingAttributes
         self.inputBar.inputField.selectedRange = NSRange(location: result.length, length: 0)
         self.inputBar.inputField.becomeFirstResponder()
     }
