@@ -576,7 +576,18 @@ extension MessageListController: MessageListDriverEventsListener {
                 messageActions.removeAll { $0.tag == "Recall" }
             }
         }
-        
+        if message.message.body.type != .voice {
+            messageActions.removeAll { $0.tag == "Stt" }
+            messageActions.removeAll { $0.tag == "CollapseStt" }
+        } else {
+            // Swap between "转文字" and "收起文字" depending on whether a transcription exists and is expanded.
+            let transcribed = (message.message.ext?[voiceToTextKey] as? String)?.isEmpty == false
+            if transcribed,message.showVoiceTranscription {
+                messageActions.removeAll { $0.tag == "Stt" }
+            } else {
+                messageActions.removeAll { $0.tag == "CollapseStt" }
+            }
+        }
         return messageActions
     }
     
@@ -701,6 +712,10 @@ extension MessageListController: MessageListDriverEventsListener {
             self.multiSelect(message: message)
         case "Forward":
             self.forwardMessage(message: message)
+        case "Stt":
+            self.viewModel.processMessage(operation: .stt, message: message)
+        case "CollapseStt":
+            self.viewModel.processMessage(operation: .stt, message: message)
         default:
             item.action?(item,message)
             break

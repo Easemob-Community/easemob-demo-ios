@@ -41,6 +41,13 @@ public let limitImageWidth = CGFloat((225/390)*ScreenWidth)
 
 public let translationKey = "EaseChatUIKit_force_show_translation"
 
+/// Extension key under which the voice-to-text result is persisted on the voice message.
+public let voiceToTextKey = "EaseChatUIKit_voice_to_text"
+
+/// Extension key marking a transcribed voice message as collapsed (transcription hidden).
+/// Session-only on purpose: collapsing is a local view state, unlike the transcription text itself.
+public let voiceToTextHiddenKey = "EaseChatUIKit_voice_to_text_hidden"
+
 public let topicHeight = CGFloat(58)
 
 public let reactionHeight = CGFloat(30)
@@ -126,7 +133,30 @@ public let urlPreviewImageHeight = CGFloat(137)
             return false
         }
     }
-        
+
+    /// Whether a transcribed voice message currently shows its transcription.
+    ///
+    /// Toggling to `false` only stamps a session-only flag in the message extension (no
+    /// `update(message)` round trip, mirroring how ``showTranslation`` removal behaves);
+    /// toggling back to `true` simply clears the flag since the transcription text persists
+    /// under ``voiceToTextKey``.
+    public var showVoiceTranscription: Bool {
+        set {
+            if newValue {
+                self.message.ext?.removeValue(forKey: voiceToTextHiddenKey)
+            } else {
+                if self.message.ext == nil {
+                    self.message.ext = [voiceToTextHiddenKey:true]
+                } else {
+                    self.message.ext?[voiceToTextHiddenKey] = true
+                }
+            }
+        }
+        get {
+            return !((self.message.ext?[voiceToTextHiddenKey] as? Bool) ?? false)
+        }
+    }
+
     /// /// Message state.
     public var state: ChatMessageStatus = .sending
     
@@ -260,6 +290,12 @@ public let urlPreviewImageHeight = CGFloat(137)
         } else {
             return nil
         }
+    }()
+
+    /// Voice message transcribed text, read from the extension where ``MessageListViewModel/voiceToText(message:)``
+    /// persists it, falling back to the SDK's ``ChatAudioMessageBody/text`` for the current session.
+    public private(set) lazy var voiceTranscription: NSAttributedString? = {
+        self.convertVoiceTranscription()
     }()
     
     /// Reply title in bubble on current message.
@@ -488,22 +524,30 @@ public let urlPreviewImageHeight = CGFloat(137)
     }
     
     open func audioSize() -> CGSize {
+        var size = CGSize.zero
         switch Int((self.message.body as? ChatAudioMessageBody)?.duration ?? 1) {
         case 0...9:
-            return CGSize(width: 75, height: audioHeight)
+            size = CGSize(width: 75, height: audioHeight)
         case 10...19:
-            return CGSize(width: 100, height: audioHeight)
+            size = CGSize(width: 100, height: audioHeight)
         case 20...29:
-            return CGSize(width: 125, height: audioHeight)
+            size = CGSize(width: 125, height: audioHeight)
         case 30...39:
-            return CGSize(width: 150, height: audioHeight)
+            size = CGSize(width: 150, height: audioHeight)
         case 40...49:
-            return CGSize(width: 175, height: audioHeight)
+            size = CGSize(width: 175, height: audioHeight)
         case 50...Appearance.chat.audioDuration:
-            return CGSize(width: limitBubbleWidth, height: audioHeight)
+            size = CGSize(width: limitBubbleWidth, height: audioHeight)
         default:
-            return .zero
+            size = .zero
         }
+        // Reserve room for the transcribed text under the audio bars once the voice message is converted to text.
+        let transcriptionSize = self.voiceTranscriptionSize()
+        if transcriptionSize.height > 0 {
+            size.width = max(size.width,transcriptionSize.width+24)
+            size.height += transcriptionSize.height+16
+        }
+        return size
     }
     
     open func customSize() -> CGSize {
@@ -755,7 +799,29 @@ public let urlPreviewImageHeight = CGFloat(137)
             return text
         }
     }
-    
+
+    /// Builds the attributed transcription for a voice message, or nil if it hasn't been transcribed yet or is collapsed.
+    open func convertVoiceTranscription() -> NSAttributedString? {
+        guard self.message.body.type == .voice else { return nil }
+        guard self.showVoiceTranscription else { return nil }
+        var transcribed = self.message.ext?[voiceToTextKey] as? String
+        if transcribed == nil {
+            transcribed = (self.message.body as? ChatAudioMessageBody)?.text
+        }
+        guard let transcribed = transcribed,!transcribed.isEmpty else { return nil }
+        return NSAttributedString {
+            AttributedText(transcribed).foregroundColor(self.message.direction == .send ? Appearance.chat.sendTranslationColor:Appearance.chat.receiveTranslationColor).font(UIFont.theme.bodySmall).lineBreakMode(.byWordWrapping)
+        }
+    }
+
+    /// The laid-out size of ``voiceTranscription`` at the bubble's available width.
+    open func voiceTranscriptionSize() -> CGSize {
+        guard let transcription = self.voiceTranscription else { return .zero }
+        let label = UILabel().numberOfLines(0).lineBreakMode(.byWordWrapping)
+        label.attributedText = transcription
+        return label.sizeThatFits(CGSize(width: limitBubbleWidth-24, height: 9999))
+    }
+
     open func updateReplySize() -> CGSize {
         if let attributeContent = self.convertToReply() {
             if let attributeTitle = self.replyTitle,attributeContent.length > 0,attributeContent.string != "message doesn't exist".chat.localize {

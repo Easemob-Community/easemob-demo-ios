@@ -329,6 +329,7 @@ import UIKit
         case .delete: self.deleteMessage(message: message)
         case .translate: self.translateMessage(message: message)
         case .originalText: self.showOriginalText(message: message)
+        case .stt: self.voiceToText(message: message)
         default: break
         }
     }
@@ -397,6 +398,50 @@ import UIKit
     
     @objc open func showOriginalText(message: ChatMessage) {
         self.driver?.processMessage(operation: .originalText, message: message)
+    }
+
+    /// Transcribes a voice message to text via ``ChatClient``'s `voiceMessageToText`.
+    ///
+    /// The SDK only supports successfully sent voice messages, and the result it hands back is
+    /// session-only (`ChatAudioMessageBody.text` is readonly). We therefore persist the text in
+    /// the message extension so the transcription survives a reload, then ask the driver to
+    /// rebuild the cell. When the message is already transcribed this acts as a toggle:
+    /// it collapses or re-expands the transcription instead of calling the API again.
+    /// - Parameter message: The voice ``ChatMessage`` to transcribe.
+    @objc open func voiceToText(message: ChatMessage) {
+        guard message.body.type == .voice else { return }
+        if let transcribed = message.ext?[voiceToTextKey] as? String,!transcribed.isEmpty {
+            let hidden = (message.ext?[voiceToTextHiddenKey] as? Bool) ?? false
+            if hidden {
+                message.ext?.removeValue(forKey: voiceToTextHiddenKey)
+            } else {
+                if message.ext == nil {
+                    message.ext = [voiceToTextHiddenKey:true]
+                } else {
+                    message.ext?[voiceToTextHiddenKey] = true
+                }
+            }
+            self.driver?.processMessage(operation: .stt, message: message)
+            return
+        }
+        guard message.status == .succeed else {
+            consoleLogInfo("voiceToText only supports sent voice messages,messageId:\(message.messageId) status:\(message.status.rawValue)", type: .error)
+            return
+        }
+        ChatClient.shared().chatManager?.voiceMessage(toText: message, completion: { [weak self] text, error in
+            guard let `self` = self else { return }
+            if let error = error {
+                consoleLogInfo("voiceToText error:\(error.errorDescription ?? "") code:\(error.code)", type: .error)
+                UIApplication.shared.keyWindow?.rootViewController?.showToast(toast: error.errorDescription ?? "")
+                return
+            }
+            guard let text = text,!text.isEmpty else { UIApplication.shared.keyWindow?.rootViewController?.showToast(toast: "没有检测的声音")
+                return
+            }
+            message.ext?[voiceToTextKey] = text
+            ChatClient.shared().chatManager?.update(message)
+            self.driver?.processMessage(operation: .stt, message: message)
+        })
     }
     
     @objc open func editMessage(message: ChatMessage,content: String = "") {

@@ -137,7 +137,9 @@ import UIKit
             ActionSheetItem(title: "barrage_long_press_menu_pin".chat.localize, type: .normal,tag: "Pin",image: UIImage(chatNamed: "message_action_pin")),
             ActionSheetItem(title: "barrage_long_press_menu_translate".chat.localize, type: .normal,tag: "Translate",image: UIImage(chatNamed: "message_action_translation")),
             ActionSheetItem(title: "barrage_long_press_menu_show_original_text".chat.localize, type: .normal,tag: "OriginalText",image: UIImage(chatNamed: "message_action_translation")),
-            ActionSheetItem(title: "barrage_long_press_menu_delete".chat.localize, type: .normal,tag: "Delete",image: UIImage(chatNamed: "message_action_delete"))
+            ActionSheetItem(title: "barrage_long_press_menu_delete".chat.localize, type: .normal,tag: "Delete",image: UIImage(chatNamed: "message_action_delete")),
+            ActionSheetItem(title: "barrage_long_press_menu_stt".chat.localize, type: .normal,tag: "Stt",image: UIImage(chatNamed: "message_action_delete")),
+            ActionSheetItem(title: "barrage_long_press_menu_collapse_stt".chat.localize, type: .normal,tag: "CollapseStt",image: UIImage(chatNamed: "message_action_translation"))
         ]
     }()
     

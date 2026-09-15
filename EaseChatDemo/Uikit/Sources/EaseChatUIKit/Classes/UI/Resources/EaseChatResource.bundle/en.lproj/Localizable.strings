@@ -34,6 +34,8 @@
 "barrage_long_press_menu_multi_select" = "Select";
 "barrage_long_press_menu_topic" = "Thread";
 "barrage_long_press_menu_pin" = "Pin";
+"barrage_long_press_menu_stt" = "Stt";
+"barrage_long_press_menu_collapse_stt" = "Hide Text";
 "Topic" = "Thread";
 "barrage_long_press_menu_cancel" = "Cancel";
 "barrage_long_press_menu_edit" = "Edit";

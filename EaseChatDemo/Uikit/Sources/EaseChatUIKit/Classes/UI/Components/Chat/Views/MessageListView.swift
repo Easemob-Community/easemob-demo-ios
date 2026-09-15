@@ -17,6 +17,7 @@ public let MessageInputBarHeight = CGFloat(52)
     case recall
     case translate
     case originalText
+    case stt
     case forward
     case multiSelect
     case createTopic
@@ -1213,6 +1214,7 @@ extension MessageListView: IMessageListViewDriver {
         case .recall: self.recallAction(message)
         case .translate: self.translateAction(message)
         case .originalText: self.showOriginalTextAction(message)
+        case .stt: self.voiceToTextAction(message)
         default:  break
         }
     }
@@ -1247,6 +1249,26 @@ extension MessageListView: IMessageListViewDriver {
             entity.showTranslation = true
             _ = entity.content
             self.convertURLPreview(entity: entity)
+            _ = entity.replyTitle
+            _ = entity.replyContent
+            _ = entity.bubbleSize
+            _ = entity.height
+            _ = entity.replySize
+            self.messages.replaceSubrange(index...index, with: [entity])
+            self.messageList.beginUpdates()
+            self.messageList.reloadRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
+            self.messageList.endUpdates()
+        }
+    }
+
+    /// Rebuilds the voice message cell after its transcription landed in the message extension.
+    private func voiceToTextAction(_ message: ChatMessage) {
+        if let index = self.messages.firstIndex(where: { $0.message.messageId == message.messageId }) {
+            let entity = ComponentsRegister.shared.MessageRenderEntity.init()
+            entity.state = self.convertStatus(message: message)
+            entity.message = message
+            _ = entity.content
+            _ = entity.voiceTranscription
             _ = entity.replyTitle
             _ = entity.replyContent
             _ = entity.bubbleSize
