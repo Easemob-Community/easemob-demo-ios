@@ -39,7 +39,7 @@ import UIKit
     @objc required public init(frame: CGRect, forward: BubbleTowards) {
         self.towards = forward
         super.init(frame: frame)
-        self.addSubview(self.arrow)
+//        self.addSubview(self.arrow)
         self.addSubview(self.bubble)
     }
     

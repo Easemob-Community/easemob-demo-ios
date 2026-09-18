@@ -371,12 +371,12 @@ let message_bubble_space = CGFloat(1)
             if self.editMode {
                 self.checkbox.frame = CGRect(x: 12, y: entity.height - 14 - (Appearance.chat.contentStyle.contains(where: { $0 == .withDateAndTime }) ? 16:2) - 28 - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageThread }) ? (self.topicView.isHidden ? 0:topicHeight):0) - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageReaction }) ? reactionContentHeight:0), width: 28, height: 28)
             }
-            self.avatar.frame = CGRect(x: self.editMode ? self.checkbox.frame.maxX+12:12, y: entity.height - 8 - (Appearance.chat.contentStyle.contains(where: { $0 == .withDateAndTime }) ? 16:2) - 34 - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageThread }) ? (self.topicView.isHidden ? 0:topicHeight):0) - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageReaction }) ? reactionContentHeight:0), width: 28, height: 28)
-            self.nickName.frame = CGRect(x:  Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.maxX+12:(self.editMode ? self.checkbox.frame.maxX+12:12), y: 10, width: limitBubbleWidth, height: 16)
+            self.avatar.frame = CGRect(x: self.editMode ? self.checkbox.frame.maxX+12:12, y: 0, width: 36.5, height: 36.5)
+            self.nickName.frame = CGRect(x:  Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.maxX+12:(self.editMode ? self.checkbox.frame.maxX+12:12), y: 0, width: limitBubbleWidth, height: 16)
             self.messageDate.textAlignment = .left
             self.nickName.textAlignment = .left
             if Appearance.chat.contentStyle.contains(.withReply) {
-                self.replyContent.frame = CGRect(x:  Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.maxX+12:(self.editMode ? self.checkbox.frame.maxX+12:12), y: Appearance.chat.contentStyle.contains(where: { $0 == .withNickName }) ? self.nickName.frame.maxY-1:12, width: entity.replySize.width, height: entity.replySize.height)
+                self.replyContent.frame = CGRect(x:  Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.maxX+12:(self.editMode ? self.checkbox.frame.maxX+12:12), y: entity.showNickName() ? self.nickName.frame.maxY+2:0, width: entity.replySize.width, height: entity.replySize.height)
             }
             self.bubbleWithArrow.towards = self.towards
             self.bubbleMultiCorners.towards = self.towards
@@ -400,13 +400,13 @@ let message_bubble_space = CGFloat(1)
             if self.editMode {
                 self.checkbox.frame = CGRect(x: 12, y: entity.height - 14 - (Appearance.chat.contentStyle.contains(where: { $0 == .withDateAndTime }) ? 16:2) - 28 - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageThread }) ? (self.topicView.isHidden ? 0:topicHeight):0) - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageReaction }) ? reactionContentHeight:0), width: 28, height: 28)
             }
-            self.avatar.frame = CGRect(x: ScreenWidth-40, y: entity.height - 8 - (Appearance.chat.contentStyle.contains(where: { $0 == .withDateAndTime }) ? 16:2) - 34 - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageThread }) ? (self.topicView.isHidden ? 0:topicHeight):0) - (Appearance.chat.contentStyle.contains(where: { $0 == .withMessageReaction }) ? reactionContentHeight:0), width: 28, height: 28)
-            self.nickName.frame = CGRect(x: Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.minX-limitBubbleWidth-12:ScreenWidth-limitBubbleWidth-12, y: 10, width: limitBubbleWidth, height: 16)
+            self.avatar.frame = CGRect(x: ScreenWidth-40, y: 0, width: 36.5, height: 36.5)
+            self.nickName.frame = CGRect(x: Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.minX-limitBubbleWidth-12:ScreenWidth-limitBubbleWidth-12, y: 0, width: limitBubbleWidth, height: 16)
             self.messageDate.frame = CGRect(x: Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? (self.avatar.frame.minX-12-120):(ScreenWidth-132), y: entity.height-16, width: 120, height: 16)
             self.messageDate.textAlignment = .right
             self.nickName.textAlignment = .right
             if Appearance.chat.contentStyle.contains(.withReply) {
-                self.replyContent.frame = CGRect(x: Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.minX-entity.replySize.width-12:ScreenWidth-12-entity.replySize.width, y: Appearance.chat.contentStyle.contains(where: { $0 == .withNickName }) ? self.nickName.frame.maxY-1:12, width: entity.replySize.width, height: entity.replySize.height)
+                self.replyContent.frame = CGRect(x: Appearance.chat.contentStyle.contains(where: { $0 == .withAvatar }) ? self.avatar.frame.minX-entity.replySize.width-12:ScreenWidth-12-entity.replySize.width, y: entity.showNickName() ? self.nickName.frame.maxY+2:0, width: entity.replySize.width, height: entity.replySize.height)
             }
             self.bubbleWithArrow.towards = (entity.message.direction == .receive ? .left:.right)
             self.bubbleMultiCorners.towards = (entity.message.direction == .receive ? .left:.right)

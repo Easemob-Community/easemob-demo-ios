@@ -215,15 +215,24 @@ public let urlPreviewImageHeight = CGFloat(137)
         }
     }
 
+    /// Whether the nickname row is actually displayed(group + receive only).
+    open func showNickName() -> Bool {
+        Appearance.chat.contentStyle.contains(.withNickName) && self.message.direction == .receive && self.message.chatType == .groupChat
+    }
+
     open func cellHeight() -> CGFloat {
         if self.isTimeDivider {
             return timeDividerHeight
         }
+        let nickBlock: CGFloat = self.showNickName() ? 18:0
+        let replyBlock: CGFloat = (Appearance.chat.contentStyle.contains(.withReply) && self.replySize.height > 0) ? self.replySize.height+2:0
+        let bottomBlock: CGFloat = Appearance.chat.contentStyle.contains(.withDateAndTime) ? 34:18
+        let contentHeight = nickBlock+replyBlock+self.bubbleSize.height+bottomBlock+self.topicContentHeight()+self.reactionContentHeight()
         if message.body.type != .custom {
-            return 8+(Appearance.chat.contentStyle.contains(.withNickName) ? 28:2)+(Appearance.chat.contentStyle.contains(.withReply) ? self.replySize.height:2)+self.bubbleSize.height+(Appearance.chat.contentStyle.contains(.withDateAndTime) ? 22:6)+self.topicContentHeight()+self.reactionContentHeight()
+            return contentHeight
         } else {
             if let body = self.message.body as? ChatCustomMessageBody,body.event == EaseChatUIKit_user_card_message {
-                return 8+(Appearance.chat.contentStyle.contains(.withNickName) ? 28:2)+(Appearance.chat.contentStyle.contains(.withReply) ? self.replySize.height:2)+self.bubbleSize.height+(Appearance.chat.contentStyle.contains(.withDateAndTime) ? 22:6)+self.topicContentHeight()+self.reactionContentHeight()
+                return contentHeight
             }
             return self.bubbleSize.height
         }
@@ -399,6 +408,9 @@ public let urlPreviewImageHeight = CGFloat(137)
             if increase >= 38 {
                 width = limitBubbleWidth
             }
+        }
+        if height < 36.5 {
+            height = 36.5
         }
         return CGSize(width: width, height: height)
     }
