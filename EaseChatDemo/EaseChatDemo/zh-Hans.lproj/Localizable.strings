@@ -139,8 +139,8 @@
 "style1" = "样式1";
 "style2" = "样式2";
 "style_preview" = "样式预览";
-"fraud_alert" = "请勿轻信任何关于汇款、中奖等信息，务必提高警惕，谨慎对待来自陌生号码的电话。如遇可疑情况，请及时向相关部门反馈并采取必要的防范措施。";
-"Click report" = "点击举报";
+"fraud_alert" = "请勿轻信转账、汇款、中奖等信息，谨慎接听陌生来电，谨防诈骗。发现可疑情况请立即举报。";
+"Click report" = "点我举报";
 "and the call duration is " = "通话时长为";
 "The other party busy" = "对方忙碌";
 "The other party refused " = "对方拒绝";

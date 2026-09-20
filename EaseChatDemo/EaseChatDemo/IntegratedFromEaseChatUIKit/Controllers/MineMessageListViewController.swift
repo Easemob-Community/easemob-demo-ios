@@ -22,7 +22,7 @@ final class MineMessageListViewController: MessageListController {
     private var imageEntity = EaseChatUIKit.MessageEntity()
         
     lazy var fraudView: FraudAlertView = {
-        FraudAlertView(frame: CGRect(x: 0, y: self.navigation.frame.maxY, width: self.view.frame.width, height: EaseChatUIKit.ScreenWidth <= 375 ? 84:72))
+        FraudAlertView(frame: CGRect(x: 0, y: self.navigation.frame.maxY, width: self.view.frame.width, height: EaseChatUIKit.ScreenWidth <= 375 ? 60:60))
     }()
     
     override func createMessageContainer() -> MessageListView {

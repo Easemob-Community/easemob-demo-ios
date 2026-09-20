@@ -11,7 +11,7 @@ import EaseChatUIKit
 final class FraudAlertView: UIView {
     
     lazy var container: UIView = {
-        UIView(frame: .zero).backgroundColor(Theme.style == .dark ? UIColor.theme.neutralSpecialColor2:UIColor.theme.neutralSpecialColor9).cornerRadius(4)
+        UIView(frame: .zero).backgroundColor(UIColor(hex: "#FFDC96") ?? UIColor.theme.neutralSpecialColor9).cornerRadius(4)
     }()
     
     lazy var fraudIcon: UIImageView = {
@@ -49,7 +49,7 @@ final class FraudAlertView: UIView {
         self.fraudContent.layoutManager.allowsNonContiguousLayout = false
         self.fraudContent.adjustsFontForContentSizeCategory = true
         self.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
-        self.fraudContent.linkTextAttributes = [.foregroundColor: Theme.style == .dark ? UIColor.theme.primaryColor6:UIColor.theme.primaryColor5]
+        self.fraudContent.linkTextAttributes = [.foregroundColor: UIColor(hex: "#E14B00") ?? UIColor.theme.primaryColor5]
         self.fraudIcon.translatesAutoresizingMaskIntoConstraints = false
         self.close.translatesAutoresizingMaskIntoConstraints = false
         self.fraudIcon.topAnchor.constraint(equalTo: self.container.topAnchor,constant: 12).isActive = true
@@ -76,7 +76,7 @@ final class FraudAlertView: UIView {
     }
     
     @objc private func closeAction() {
-        self.removeFromSuperview()
-        self.closeClosure?()
+//        self.removeFromSuperview()
+//        self.closeClosure?()
     }
 }
