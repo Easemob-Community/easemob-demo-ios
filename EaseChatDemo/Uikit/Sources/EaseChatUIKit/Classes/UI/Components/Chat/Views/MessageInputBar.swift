@@ -78,6 +78,9 @@ import UIKit
 
     /// A closure to be called when the user toggles the emoji keyboard.
     public var changeEmojiClosure: ((Bool) -> Void)?
+
+    /// A closure to be called when a gif cover is selected in the emoji keyboard,passes the cover image file path.
+    public var gifClosure: ((String) -> Void)?
     
     private var hiddenDuration = Double(0.2)
     
@@ -567,6 +570,9 @@ extension MessageInputBar: UITextViewDelegate {
                     self?.emoji?.deleteEmoji.isUserInteractionEnabled = false
                 }
                 self?.updateHeight()
+            }
+            self.emoji?.gifClosure = { [weak self] in
+                self?.gifClosure?($0)
             }
             self.updateHeight()
         } else {

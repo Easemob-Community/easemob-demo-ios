@@ -220,6 +220,9 @@ public enum PHPickerMediaResolver {
         self.viewModel.bindDriver(driver: self.messageContainer)
         self.viewModel.bindPinContainerDriver(driver: self.pinContainer)
         self.viewModel.addEventsListener(self)
+        self.messageContainer.inputBar.gifClosure = { [weak self] path in
+            self?.viewModel.sendMessage(text: path, type: .gif)
+        }
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
         self.view.addSubview(self.loadingView)

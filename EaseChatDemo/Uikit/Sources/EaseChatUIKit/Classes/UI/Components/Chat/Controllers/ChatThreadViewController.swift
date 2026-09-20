@@ -160,6 +160,9 @@ import PhotosUI
                 }
                 self.viewModel.bindDriver(driver: self.messageContainer, create: self.firstMessage != nil)
                 self.viewModel.addEventsListener(self)
+                self.messageContainer.inputBar.gifClosure = { [weak self] path in
+                    self?.viewModel.sendMessage(text: path, type: .gif)
+                }
                 if let firstMessage = self.firstMessage {
                     self.viewModel.sendFirstMessage(message: firstMessage)
                 }
