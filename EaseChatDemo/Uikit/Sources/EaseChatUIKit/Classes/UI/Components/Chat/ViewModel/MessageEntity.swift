@@ -227,7 +227,7 @@ public let urlPreviewImageHeight = CGFloat(137)
         let nickBlock: CGFloat = self.showNickName() ? 18:0
         let replyBlock: CGFloat = (Appearance.chat.contentStyle.contains(.withReply) && self.replySize.height > 0) ? self.replySize.height+2:0
         let bottomBlock: CGFloat = Appearance.chat.contentStyle.contains(.withDateAndTime) ? 34:18
-        let contentHeight = nickBlock+replyBlock+self.bubbleSize.height+bottomBlock+self.topicContentHeight()+self.reactionContentHeight()
+        let contentHeight = nickBlock+replyBlock+self.bubbleSize.height+bottomBlock+self.topicContentHeight()+self.reactionContentHeight()+self.bottomAccessoryHeight
         if message.body.type != .custom {
             return contentHeight
         } else {
@@ -491,6 +491,13 @@ public let urlPreviewImageHeight = CGFloat(137)
     }
     
     open func thumbnailSize(video: Bool) -> CGSize {
+        if let body = self.message.body as? ChatImageMessageBody,body.isGif {
+            /// Built-in gifs sent from the emoji panel are named `N.gif`(aligned with `N.gif` in `EaseChatResource.bundle`),display them at a fixed size of 150*150.
+            let resourceName = body.displayName.components(separatedBy: ".").first ?? ""
+            if Int(resourceName) != nil,Bundle.chatBundle.path(forResource: resourceName, ofType: "gif") != nil {
+                return CGSize(width: 150, height: 150)
+            }
+        }
         let defaultSize = CGSize(width: 135, height: 135)
         var size = CGSize.zero
         if let body = self.message.body as? ChatImageMessageBody {
@@ -552,12 +559,6 @@ public let urlPreviewImageHeight = CGFloat(137)
             size = CGSize(width: limitBubbleWidth, height: audioHeight)
         default:
             size = .zero
-        }
-        // Reserve room for the transcribed text under the audio bars once the voice message is converted to text.
-        let transcriptionSize = self.voiceTranscriptionSize()
-        if transcriptionSize.height > 0 {
-            size.width = max(size.width,transcriptionSize.width+24)
-            size.height += transcriptionSize.height+16
         }
         return size
     }
@@ -824,6 +825,17 @@ public let urlPreviewImageHeight = CGFloat(137)
         return NSAttributedString {
             AttributedText(transcribed).foregroundColor(self.message.direction == .send ? Appearance.chat.sendTranslationColor:Appearance.chat.receiveTranslationColor).font(UIFont.theme.bodySmall).lineBreakMode(.byWordWrapping)
         }
+    }
+
+    /// Extra height reserved below the bubble for auxiliary content. ``AudioMessageCell`` renders the
+    /// voice-to-text card in this space,and ``MessageCell`` subtracts the same amount from its
+    /// bottom-anchored layout so the bubble lifts instead of overlapping the card.
+    public var bottomAccessoryHeight: CGFloat {
+        if self.historyMessage || self.message.body.type != .voice {
+            return 0
+        }
+        let transcriptionSize = self.voiceTranscriptionSize()
+        return transcriptionSize.height > 0 ? transcriptionSize.height+24:0
     }
 
     /// The laid-out size of ``voiceTranscription`` at the bubble's available width.
