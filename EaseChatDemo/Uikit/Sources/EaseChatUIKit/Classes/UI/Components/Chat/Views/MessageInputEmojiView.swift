@@ -15,7 +15,8 @@ import UIKit
 
     public var emojiClosure: ((String) -> Void)?
 
-    /// Called when a gif cover is tapped,passes the local file path of the corresponding `N.gif` in `EaseChatResource.bundle`.
+    /// Called when a gif cover is tapped,passes a local file path of the gif ready for sending.
+    /// If the gif comes from the built-in `EaseChatResource.bundle`,it is copied to the sandbox first and the sandbox path is passed instead.
     public var gifClosure: ((String) -> Void)?
 
     /// Gif cover image names contained in `EaseChatResource.bundle`.
@@ -84,6 +85,28 @@ import UIKit
         self.refreshTabState()
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
+    }
+
+    /// Copies the built-in gif from `EaseChatResource.bundle` into the sandbox
+    /// (bundle paths are not stable across reinstalls/upgrades and should not be
+    /// referenced by a message body),and returns the sandbox path.
+    /// Returns `path` unchanged when the copy fails.
+    public static func sandboxGifPathIfNeeded(for path: String) -> String {
+        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return path }
+        let directory = documents.appendingPathComponent("ChatGifs", isDirectory: true)
+        let fileName = path.components(separatedBy: "/").last ?? "\(Date().timeIntervalSince1970).gif"
+        let sandboxPath = directory.appendingPathComponent(fileName).path
+        if FileManager.default.fileExists(atPath: sandboxPath) {
+            return sandboxPath
+        }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(atPath: path, toPath: sandboxPath)
+            return sandboxPath
+        } catch {
+            consoleLogInfo("Copy gif from bundle to sandbox failed:\(error.localizedDescription)", type: .error)
+            return path
+        }
     }
     
     open override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -175,7 +198,7 @@ extension MessageInputEmojiView: UICollectionViewDelegate, UICollectionViewDataS
         collectionView.deselectItem(at: indexPath, animated: true)
         if collectionView == self.gifList {
             if let path = Bundle.chatBundle.path(forResource: "\(indexPath.row+1)", ofType: "gif") {
-                self.gifClosure?(path)
+                self.gifClosure?(MessageInputEmojiView.sandboxGifPathIfNeeded(for: path))
             }
         } else {
             self.emojiClosure?(ChatEmojiConvertor.shared.emojis[indexPath.row])
