@@ -39,7 +39,7 @@
 "barrage_long_press_menu_cancel" = "取消";
 "barrage_long_press_menu_pin" = "置顶";
 "barrage_long_press_menu_stt" = "转文字";
-"barrage_long_press_menu_collapse_stt" = "收起文字";
+"barrage_long_press_menu_collapse_stt" = "取消转文字";
 
 "common_button_cancel" = "取消";
 "Confirm" = "确认";

@@ -45,7 +45,7 @@ import UIKit
     }()
 
     public private(set) lazy var gifTab: UIButton = {
-        UIButton(type: .custom).frame(CGRect(x: 50, y: 8, width: 32, height: 32)).image(UIImage(chatNamed: "gif_cover_1"), .normal).addTargetFor(self, action: #selector(switchTab(_:)), for: .touchUpInside).cornerRadius(.small).backgroundColor(.clear)
+        UIButton(type: .custom).frame(CGRect(x: 50, y: 8, width: 32, height: 32)).image(UIImage(chatNamed: "message_bar_gif"), .normal).addTargetFor(self, action: #selector(switchTab(_:)), for: .touchUpInside).cornerRadius(.small).backgroundColor(.clear)
     }()
 
     public lazy var gifFlowLayout: UICollectionViewFlowLayout = {
