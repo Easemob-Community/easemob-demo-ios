@@ -9,7 +9,8 @@ import UIKit
 
 @objc open class NewContactRequestController: UIViewController {
         
-    @UserDefault("EaseChatUIKit_contact_new_request", defaultValue: Dictionary<String,Array<Dictionary<String,Any>>>()) private var newFriends
+    private let requestStore = FriendRequestStore()
+    private var processingUserIds = Set<String>()
     
     public let contactService: ContactServiceImplement = ChatUIKitClient.shared.contactService as? ContactServiceImplement ?? ContactServiceImplement()
     
@@ -52,43 +53,46 @@ import UIKit
             self.requestList.backgroundView = nil
         }
         self.requestProfiles()
+        NotificationCenter.default.addObserver(self, selector: #selector(requestHistoryDidChange(_:)), name: FriendRequestStore.didChange, object: nil)
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func requestHistoryDidChange(_ notification: Notification) {
+        guard notification.object as? String == self.requestStore.ownerIdentifier else { return }
+        self.reloadRequests()
+        self.requestProfiles()
+    }
+
+    private func reloadRequests() {
+        self.datas = self.fillDatas().sorted { $0.time > $1.time }
+        self.requestList.backgroundView = self.datas.isEmpty ? self.empty : nil
+        self.requestList.reloadData()
     }
     
     @objc open func requestProfiles() {
         var userIds = [String]()
         for user in self.datas {
-            if let userCache = ChatUIKitContext.shared?.userCache?[user.userId],!userCache.nickname.isEmpty {
+            if !user.nickname.isEmpty && !user.avatarURL.isEmpty {
                 continue
             }
             userIds.append(user.userId)
         }
+        userIds = Array(Set(userIds))
+        guard !userIds.isEmpty else { return }
         if ChatUIKitContext.shared?.userProfileProvider != nil {
-            Task(priority: .background) {
+            Task(priority: .background) { [weak self] in
                 let profiles = await ChatUIKitContext.shared?.userProfileProvider?.fetchProfiles(profileIds: userIds) ?? []
-                for profile in profiles {
-                    if let info = self.datas.first(where: { $0.userId == profile.id }) {
-                        info.nickname = profile.nickname
-                        info.avatarURL = profile.avatarURL
-                    }
-                }
-                DispatchQueue.main.async {
-                    self.requestList.reloadData()
-                }
+                self?.refreshProfiles(profiles: profiles, unknownInfoMaps: [:])
             }
         } else {
             if ChatUIKitContext.shared?.userProfileProviderOC != nil {
                 ChatUIKitContext.shared?.userProfileProviderOC?.fetchProfiles(profileIds: userIds, completion: { [weak self] profiles in
-                    for profile in profiles {
-                        if let info = self?.datas.first(where: { $0.userId == profile.id }) {
-                            info.nickname = profile.nickname
-                            info.avatarURL = profile.avatarURL
-                        }
-                    }
-                    DispatchQueue.main.async {
-                        self?.requestList.reloadData()
-                    }
+                    self?.refreshProfiles(profiles: profiles, unknownInfoMaps: [:])
                 })
             }
         }
@@ -110,14 +114,16 @@ import UIKit
     }
     
     @objc open func fillDatas() -> [NewContactRequest] {
-        self.newFriends[saveIdentifier]?.map {
+        self.requestStore.requests.map {
             let request = NewContactRequest()
             request.userId = ($0["userId"] as? String) ?? ""
             request.time = ($0["timestamp"] as? TimeInterval) ?? 0
+            request.status = FriendRequestStore.status(of: $0)
+            request.isProcessing = self.processingUserIds.contains(request.userId)
             request.avatarURL = ChatUIKitContext.shared?.userCache?[request.userId]?.avatarURL ?? ""
             request.nickname = ChatUIKitContext.shared?.userCache?[request.userId]?.nickname ?? ""
             return request
-        } ?? []
+        }
     }
     
 }
@@ -177,16 +183,17 @@ extension NewContactRequestController: UITableViewDelegate,UITableViewDataSource
     }
     
     @objc open func refreshProfiles(profiles: [ChatUserProfileProtocol],unknownInfoMaps: [String:IndexPath]) {
-        var refreshIndexPaths = [IndexPath]()
-        for profile in profiles {
-            if let indexPath = unknownInfoMaps[profile.id] {
-                self.datas[indexPath.row].nickname = profile.nickname
-                self.datas[indexPath.row].avatarURL = profile.avatarURL
-                refreshIndexPaths.append(indexPath)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            // A user can have both historical and pending requests. Refresh all
+            // matching rows by ID, since new requests may have shifted indices.
+            for profile in profiles {
+                for request in self.datas where request.userId == profile.id {
+                    request.nickname = profile.nickname
+                    request.avatarURL = profile.avatarURL
+                }
             }
-        }
-        DispatchQueue.main.async {
-            self.requestList.reloadRows(at: refreshIndexPaths, with: .none)
+            self.requestList.reloadData()
         }
     }
     
@@ -203,27 +210,32 @@ extension NewContactRequestController: UITableViewDelegate,UITableViewDataSource
      - Parameter userId: The ID of the user who sent the friend request.
      */
     @objc open func agreeFriendRequest(userId: String) {
+        guard self.requestStore.ownerIdentifier == saveIdentifier,
+              !self.processingUserIds.contains(userId),
+              self.datas.contains(where: { $0.userId == userId && $0.status == .pending }) else { return }
+        self.processingUserIds.insert(userId)
+        for request in self.datas where request.userId == userId {
+            request.isProcessing = true
+        }
+        self.requestList.reloadData()
         self.contactService.agreeFriendRequest(from: userId) { [weak self] error, userId in
-            guard let self = self else { return }
-            if error != nil,error?.code == .userAlreadyLoginAnother {
-                consoleLogInfo("agreeFriendRequest error: \(error?.errorDescription ?? "")", type: .error)
-            } else {
-                self.newFriends[saveIdentifier]?.removeAll { ($0["userId"] as? String) ?? "" == userId }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.processingUserIds.remove(userId)
+                self.reloadRequests()
+                guard self.requestStore.ownerIdentifier == saveIdentifier else { return }
+                if let error = error {
+                    consoleLogInfo("agreeFriendRequest error: \(error.errorDescription ?? "")", type: .error)
+                    self.showToast(toast: error.errorDescription ?? "")
+                    return
+                }
                 let conversation = ChatClient.shared().chatManager?.getConversation(userId, type: .chat, createIfNotExist: true)
                 let ext = ["something":("You have added".chat.localize+" "+userId+" "+"to say hello".chat.localize)]
                 let message = ChatMessage(conversationID: userId, body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: ext)
                 conversation?.insert(message, error: nil)
                 
-                self.datas.removeAll()
-                self.datas = self.fillDatas()
-                self.datas.sort { $0.time > $1.time }
-                if self.datas.count <= 0 {
-                    self.requestList.backgroundView = self.empty
-                } else {
-                    self.requestList.backgroundView = nil
-                }
                 self.requestFriendInfo(userId: userId)
-                self.requestList.reloadData()
+                self.requestProfiles()
             }
         }
     }

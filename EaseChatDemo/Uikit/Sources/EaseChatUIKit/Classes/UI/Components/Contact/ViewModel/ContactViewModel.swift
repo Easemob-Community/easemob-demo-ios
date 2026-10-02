@@ -20,8 +20,6 @@ import UIKit
     
     public var notifySelf = false
     
-    @UserDefault("EaseChatUIKit_contact_new_request", defaultValue: Dictionary<String,Array<Dictionary<String,Any>>>()) private var newFriends
-    
     
     /// ``ContactViewModel`` init method.
     ///   -  ignoreIds: Array of contact ids that already exist in the group.
@@ -137,15 +135,7 @@ import UIKit
     }
     
     @objc open func notifyCleanNewFriendRequestBadge() {
-        let oldFriends = self.newFriends[saveIdentifier] ?? [Dictionary<String,Any>]()
-        var friends = [Dictionary<String,Any>]()
-        for friend in oldFriends {
-            let requestInfo: [String:Any] = ["userId":friend["userId"] ?? "","timestamp":friend["timestamp"] ?? Date().timeIntervalSince1970*1000,"groupApply":friend["groupApply"] ?? 0,"read":1]
-            friends.append(requestInfo)
-        }
-        
-        self.newFriends[saveIdentifier]?.removeAll()
-        self.newFriends[saveIdentifier] = friends
+        FriendRequestStore().markAllRead()
         if let implement = self.service as? ContactServiceImplement {
             implement.handleResult(error: nil, type: .cleanFriendBadge, operatorId: ChatUIKitContext.shared?.currentUserId ?? "")
         }
@@ -220,20 +210,12 @@ extension ContactViewModel: ContactEventsResponse {
     }
     
     @objc open func processFriendRequestDidReceive(userId: String) {
-        let requestInfo: [String:Any] = ["userId":userId,"timestamp":Date().timeIntervalSince1970*1000,"groupApply":0,"read":0]
-        var exist = self.newFriends[saveIdentifier]
-        if exist == nil {
-            self.newFriends[saveIdentifier] = [requestInfo]
-        } else {
-            if exist?.first(where: { $0["userId"] as? String == userId }) == nil {
-                exist?.append(requestInfo)
-                self.newFriends[saveIdentifier] = exist
-            }
-        }
+        let store = FriendRequestStore()
+        store.receive(userId: userId)
         if let index = Appearance.contact.listHeaderExtensionActions.firstIndex(where: { $0.featureIdentify == "NewFriendRequest" }) {
             let item = Appearance.contact.listHeaderExtensionActions[index]
             item.showBadge = true
-            let unreadCount = self.newFriends[saveIdentifier]?.filter({ $0["read"] as? Int == 0 }).count ?? 0
+            let unreadCount = store.requests.filter({ $0["read"] as? Int == 0 }).count
             item.numberCount = UInt(unreadCount)
             self.driver?.refreshHeader(info: item)
         }
@@ -260,10 +242,11 @@ extension ContactViewModel: MultiDeviceListener {
     }
     
     @objc open func addContact(userId: String) {
-        self.newFriends[saveIdentifier]?.removeAll { ($0["userId"] as? String) ?? "" == userId }
+        let store = FriendRequestStore()
+        store.updateStatus(.accepted, userId: userId)
         
         if let item = Appearance.contact.listHeaderExtensionActions.first(where: { $0.featureIdentify == "NewFriendRequest" }) {
-            let unreadCount = self.newFriends[saveIdentifier]?.filter { $0["read"] as? Int == 0 }.count ?? 0
+            let unreadCount = store.requests.filter { $0["read"] as? Int == 0 }.count
             item.numberCount = UInt(unreadCount)
             self.driver?.refreshHeader(info: item)
         }

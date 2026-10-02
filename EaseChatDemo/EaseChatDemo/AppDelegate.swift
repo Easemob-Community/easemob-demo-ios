@@ -21,7 +21,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     @UserDefault("EaseChatDemoServerConfig", defaultValue: [String: String]()) private
         var serverConfig
 
-    @UserDefault("EaseChatDemoPreferencesTheme", defaultValue: 0) var theme: UInt
+    @UserDefault("EaseChatDemoPreferencesTheme", defaultValue: 1) var theme: UInt
 
     @UserDefault("EaseMobChatMessageTranslation", defaultValue: true) var enableTranslation: Bool
 

@@ -12,6 +12,8 @@ import UIKit
     public var time: TimeInterval = 0
     public var avatarURL: String = ""
     public var nickname: String = ""
+    public var status: NewContactRequestStatus = .pending
+    public var isProcessing: Bool = false
 }
 
 @objcMembers open class NewContactRequestCell: UITableViewCell {
@@ -60,7 +62,7 @@ import UIKit
         self.avatar.frame = CGRect(x: 16, y: (self.contentView.frame.height-40)/2.0, width: 40, height: 40)
         self.nickName.frame =  CGRect(x: self.avatar.frame.maxX+12, y: self.avatar.frame.minY+3, width: self.contentView.frame.width-self.avatar.frame.maxX-12-90, height: 16)
         self.content.frame = CGRect(x: self.avatar.frame.maxX+12, y: self.nickName.frame.maxY+5, width: self.contentView.frame.width-self.avatar.frame.maxX-12-90, height: 16)
-        self.add.frame = CGRect(x: self.contentView.frame.width-90, y: self.nickName.frame.minY+2, width: 72, height: 28)
+        self.add.frame = CGRect(x: self.contentView.frame.width-90, y: (self.contentView.frame.height-28)/2.0, width: 74, height: 28)
         self.separateLine.frame = CGRect(x: self.nickName.frame.minX, y: self.contentView.frame.height-0.5, width: self.contentView.frame.width-self.nickName.frame.minX, height: 0.5)
     }
     
@@ -68,12 +70,25 @@ import UIKit
         self.request = request
         if !request.avatarURL.isEmpty {
             self.avatar.image(with: request.avatarURL, placeHolder: Appearance.avatarPlaceHolder)
+        } else {
+            self.avatar.image = Appearance.avatarPlaceHolder
         }
-        self.nickName.text = "contactID".chat.localize + ": " + request.userId
+        self.nickName.text = request.nickname.count != 0 ? request.nickname : request.userId
         self.content.text = "NewRequestDetail".chat.localize
+        let title: String
+        switch request.status {
+        case .pending: title = "Add".chat.localize
+        case .accepted: title = "NewRequestAdded".chat.localize
+        case .declined: title = "NewRequestDeclined".chat.localize
+        }
+        self.add.setTitle(title, for: .normal)
+        self.add.setTitle(title, for: .disabled)
+        self.add.isEnabled = request.status == .pending && !request.isProcessing
+        self.switchTheme(style: Theme.style)
     }
     
     @objc private func addFriend() {
+        guard self.request.status == .pending, !self.request.isProcessing else { return }
         self.agreeClosure?(self.request.userId)
     }
 }
@@ -83,7 +98,13 @@ extension NewContactRequestCell: ThemeSwitchProtocol {
         self.nickName.textColor = style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1
         self.content.textColor = style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor5
         self.date.textColor = style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor5
-        self.add.backgroundColor = style == .dark ? UIColor.theme.primaryDarkColor:UIColor.theme.primaryLightColor
+        self.add.setTitleColor(UIColor.theme.neutralColor98, for: .normal)
+        self.add.setTitleColor(style == .dark ? UIColor.theme.neutralColor3:UIColor.theme.neutralColor7, for: .disabled)
+        if self.add.isEnabled {
+            self.add.backgroundColor = style == .dark ? UIColor.theme.primaryDarkColor:UIColor.theme.primaryLightColor
+        } else {
+            self.add.backgroundColor = style == .dark ? UIColor.theme.neutralColor2:UIColor.theme.neutralColor95
+        }
         self.separateLine.backgroundColor = style == .dark ? UIColor.theme.neutralColor2:UIColor.theme.neutralColor9
     }
     

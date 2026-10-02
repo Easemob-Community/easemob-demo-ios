@@ -13,8 +13,6 @@ import UIKit
     
     private var eventsNotifiers: NSHashTable<ContactEmergencyListener> = NSHashTable<ContactEmergencyListener>.weakObjects()
     
-    @UserDefault("EaseChatUIKit_contact_new_request", defaultValue: Dictionary<String,Array<Dictionary<String,Any>>>()) private var newFriends
-    
     @objc public override init() {
         super.init()
         ChatClient.shared().contactManager?.add(self, delegateQueue: .main)
@@ -69,15 +67,23 @@ extension ContactServiceImplement: ContactServiceProtocol {
     }
     
     public func agreeFriendRequest(from userId: String, completion: @escaping (ChatError?, String) -> Void) {
-        ChatClient.shared().contactManager?.approveFriendRequest(fromUser: userId, completion: { [weak self] userId, error in
-            completion(error,userId ?? "")
+        let store = FriendRequestStore()
+        ChatClient.shared().contactManager?.approveFriendRequest(fromUser: userId, completion: { [weak self] _, error in
+            if error == nil {
+                store.updateStatus(.accepted, userId: userId)
+            }
+            completion(error,userId)
             self?.handleResult(error: error, type: .agree, operatorId: ChatUIKitContext.shared?.currentUserId ?? "")
         })
     }
     
     public func declineFriendRequest(from userId: String, completion: @escaping (ChatError?, String) -> Void) {
-        ChatClient.shared().contactManager?.declineFriendRequest(fromUser: userId, completion: { [weak self] userId, error in
-            completion(error,userId ?? "")
+        let store = FriendRequestStore()
+        ChatClient.shared().contactManager?.declineFriendRequest(fromUser: userId, completion: { [weak self] _, error in
+            if error == nil {
+                store.updateStatus(.declined, userId: userId)
+            }
+            completion(error,userId)
             self?.handleResult(error: error, type: .decline, operatorId: ChatUIKitContext.shared?.currentUserId ?? "")
         })
     }
@@ -117,6 +123,7 @@ extension ContactServiceImplement: ContactServiceProtocol {
 extension ContactServiceImplement: ContactEventsListener {
     
     public func friendshipDidAdd(byUser aUsername: String) {
+        FriendRequestStore().updateStatus(.accepted, userId: aUsername)
         for listener in self.responseDelegates.allObjects {
             listener.friendshipDidAddSuccessful(by: aUsername)
         }
@@ -169,18 +176,12 @@ extension ContactServiceImplement: ContactEventsListener {
     }
     
     private func saveFriendRequest(from userId: String) {
-        let requestInfo: [String:Any] = ["userId":userId,"timestamp":Date().timeIntervalSince1970*1000,"groupApply":0,"read":0]
-        var exist = self.newFriends[saveIdentifier]
-        if exist == nil {
-            self.newFriends[saveIdentifier] = [requestInfo]
-        } else if exist?.first(where: { $0["userId"] as? String == userId }) == nil {
-            exist?.append(requestInfo)
-            self.newFriends[saveIdentifier] = exist
-        }
+        let store = FriendRequestStore()
+        store.receive(userId: userId)
         if let index = Appearance.contact.listHeaderExtensionActions.firstIndex(where: { $0.featureIdentify == "NewFriendRequest" }) {
             let item = Appearance.contact.listHeaderExtensionActions[index]
             item.showBadge = true
-            let unreadCount = self.newFriends[saveIdentifier]?.filter({ $0["read"] as? Int == 0 }).count ?? 0
+            let unreadCount = store.requests.filter({ $0["read"] as? Int == 0 }).count
             item.numberCount = UInt(unreadCount)
             Appearance.contact.listHeaderExtensionActions[index].numberCount = UInt(unreadCount)
         }
@@ -194,4 +195,94 @@ extension ContactServiceImplement: ContactEventsListener {
     
 }
 
+@objc public enum NewContactRequestStatus: Int {
+    case pending = 0
+    case accepted = 1
+    case declined = 2
+}
+
+/// Keeps request history in the existing, app-key and account scoped storage.
+/// Missing status values belong to pending requests saved by older versions.
+struct FriendRequestStore {
+    static let didChange = Notification.Name("EaseChatUIKit_friend_request_did_change")
+    private static let storageKey = "EaseChatUIKit_contact_new_request"
+    private static let lock = NSLock()
+
+    let ownerIdentifier: String
+    private let defaults: UserDefaults
+
+    init(ownerIdentifier: String = saveIdentifier, defaults: UserDefaults = .standard) {
+        self.ownerIdentifier = ownerIdentifier
+        self.defaults = defaults
+    }
+
+    var requests: [[String: Any]] {
+        Self.lock.lock()
+        defer { Self.lock.unlock() }
+        return self.allRequests[self.ownerIdentifier] ?? []
+    }
+
+    private var allRequests: [String: [[String: Any]]] {
+        self.defaults.object(forKey: Self.storageKey) as? [String: [[String: Any]]] ?? [:]
+    }
+
+    static func status(of request: [String: Any]) -> NewContactRequestStatus {
+        NewContactRequestStatus(rawValue: request["status"] as? Int ?? 0) ?? .pending
+    }
+
+    func receive(userId: String) {
+        guard !userId.isEmpty else { return }
+        self.mutate { requests in
+            // SDK and view-model callbacks can both deliver the same request.
+            guard !requests.contains(where: {
+                $0["userId"] as? String == userId && Self.status(of: $0) == .pending
+            }) else { return false }
+            requests.append(["userId": userId, "timestamp": Date().timeIntervalSince1970 * 1000,
+                             "groupApply": 0, "read": 0, "status": NewContactRequestStatus.pending.rawValue])
+            return true
+        }
+    }
+
+    func updateStatus(_ status: NewContactRequestStatus, userId: String) {
+        guard status != .pending else { return }
+        self.mutate { requests in
+            var changed = false
+            for index in requests.indices where requests[index]["userId"] as? String == userId
+                && Self.status(of: requests[index]) == .pending {
+                requests[index]["status"] = status.rawValue
+                requests[index]["read"] = 1
+                changed = true
+            }
+            return changed
+        }
+    }
+
+    func markAllRead() {
+        self.mutate { requests in
+            var changed = false
+            for index in requests.indices where requests[index]["read"] as? Int != 1 {
+                requests[index]["read"] = 1
+                changed = true
+            }
+            return changed
+        }
+    }
+
+    private func mutate(_ change: (inout [[String: Any]]) -> Bool) {
+        Self.lock.lock()
+        var all = self.allRequests
+        var requests = all[self.ownerIdentifier] ?? []
+        let changed = change(&requests)
+        if changed {
+            all[self.ownerIdentifier] = requests
+            self.defaults.set(all, forKey: Self.storageKey)
+        }
+        Self.lock.unlock()
+        if changed {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Self.didChange, object: self.ownerIdentifier)
+            }
+        }
+    }
+}
 

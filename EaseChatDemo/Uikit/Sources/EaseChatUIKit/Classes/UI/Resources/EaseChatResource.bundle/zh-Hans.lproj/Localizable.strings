@@ -70,6 +70,8 @@
 "Add" = "添加";
 "Remove" = "删除";
 "NewRequestDetail" = "请求添加您为好友";
+"NewRequestAdded" = "已添加";
+"NewRequestDeclined" = "已拒绝";
 "Groups" = "群聊";
 "NewRequest" = "新请求";
 

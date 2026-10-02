@@ -40,6 +40,11 @@ extension MultiDeviceServiceImplement: MultiDeviceService {
 
 extension MultiDeviceServiceImplement: MultiDeviceEventsListener {
     public func multiDevicesContactEventDidReceive(_ aEvent: MultiDeviceEvent, username aUsername: String, ext aExt: String?) {
+        if aEvent == .contactAccept {
+            FriendRequestStore().updateStatus(.accepted, userId: aUsername)
+        } else if aEvent == .contactDecline {
+            FriendRequestStore().updateStatus(.declined, userId: aUsername)
+        }
         for listener in self.responseDelegates.allObjects {
             listener.onContactsEventDidChanged?(event: aEvent, userId: aUsername, extension: aExt ?? "")
         }

@@ -63,6 +63,8 @@
 "Contact" = "Contacts";
 "Add" = "Add";
 "NewRequestDetail" = "request to add you as a friend";
+"NewRequestAdded" = "Added";
+"NewRequestDeclined" = "Declined";
 "Groups" = "Groups";
 "New Request" = "New Request";
 "Joined Groups" = "Groups";
