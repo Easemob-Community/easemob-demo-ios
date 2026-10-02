@@ -265,8 +265,14 @@ final class MineConversationsController: ConversationListController {
         if text.chat.numCount != 11 {
             ChatClient.shared().contactManager?.addContact(text, message: "", completion: { [weak self]  userId,error  in
                 if let error = error {
-                    DispatchQueue.main.async {
-                        self?.showToast(toast: "add contact error:\(error.errorDescription ?? "")")
+                    if error.code == .userNotFound {
+                        DispatchQueue.main.async {
+                            self?.showToast(toast: "The user not found".chat.localize)
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self?.showToast(toast: "add contact error:\(error.errorDescription ?? "")")
+                        }
                     }
                     consoleLogInfo("add contact error:\(error.errorDescription ?? "")", type: .error)
                 } else {
@@ -286,6 +292,15 @@ final class MineConversationsController: ConversationListController {
                 if let userId = result?["chatUserName"] as? String {
                     ChatClient.shared().contactManager?.addContact(userId, message: "", completion: {  userId,error  in
                         if let error = error {
+                            if error.code == .userNotFound {
+                                DispatchQueue.main.async {
+                                    self?.showToast(toast: "The user not found".chat.localize)
+                                }
+                            } else {
+                                DispatchQueue.main.async {
+                                    self?.showToast(toast: "add contact error:\(error.errorDescription ?? "")")
+                                }
+                            }
                             consoleLogInfo("add contact error:\(error.errorDescription ?? "")", type: .error)
                         } else {
                             DispatchQueue.main.async {

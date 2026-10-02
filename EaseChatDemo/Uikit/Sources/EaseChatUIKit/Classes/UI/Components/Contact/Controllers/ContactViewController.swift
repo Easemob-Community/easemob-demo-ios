@@ -251,8 +251,18 @@ import UIKit
     @objc open func addContact() {
         DialogManager.shared.showAlert(title: "new_chat_button_click_menu_addcontacts".chat.localize, content:
                                         "add_contacts_subtitle".chat.localize, showCancel: true, showConfirm: true,showTextFiled: true,placeHolder: "contactID".chat.localize) { [weak self] text in
-            self?.viewModel?.service?.addContact(userId: text, invitation: "", completion: { error, userId in
+            guard let self = self else { return }
+            self.viewModel?.service?.addContact(userId: text, invitation: "", completion: { error, userId in
                 if let error = error {
+                    if error.code == .userNotFound {
+                        DispatchQueue.main.async {
+                            self.showToast(toast: "The user not found".chat.localize)
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self.showToast(toast: "add contact error:\(error.errorDescription ?? "")")
+                        }
+                    }
                     consoleLogInfo("add contact error:\(error.errorDescription ?? "")", type: .error)
                 }
             })
@@ -365,4 +375,3 @@ extension ContactViewController: ThemeSwitchProtocol {
     }
     
 }
-
