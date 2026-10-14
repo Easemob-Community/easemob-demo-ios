@@ -12,14 +12,18 @@ import UIKit
     private var responseDelegates: NSHashTable<GroupServiceListener> = NSHashTable<GroupServiceListener>.weakObjects()
     
     private var threadDelegates: NSHashTable<GroupChatThreadEventListener> = NSHashTable<GroupChatThreadEventListener>.weakObjects()
+    private var listeningForThreads = false
+
+    private struct RecentAdminNotice {
+        let added: Bool
+        let time: TimeInterval
+    }
+    private var recentAdminNotices: [String: RecentAdminNotice] = [:]
     
     
     public override init() {
         super.init()
         ChatClient.shared().groupManager?.add(self, delegateQueue: .main)
-        if Appearance.chat.contentStyle.contains(.withMessageThread) {
-            ChatClient.shared().threadManager?.add(self, delegateQueue: .main)
-        }
     }
     
     deinit {
@@ -30,6 +34,10 @@ import UIKit
 
 extension GroupServiceImplement: GroupService {
     public func bindGroupChatThreadEventListener(listener: GroupChatThreadEventListener) {
+        if !self.listeningForThreads {
+            ChatClient.shared().threadManager?.add(self, delegateQueue: .main)
+            self.listeningForThreads = true
+        }
         if self.threadDelegates.contains(listener) {
             return
         }
@@ -269,6 +277,20 @@ extension GroupServiceImplement: GroupEventsListener {
             listener.onGroupOwnerUpdated?(groupId: aGroup.groupId, ownerId: aNewOwner, userId: aOldOwner)
         }
     }
+
+    public func groupAdminListDidUpdate(_ group: ChatGroup, addedAdmin userId: String) {
+        for listener in self.responseDelegates.allObjects {
+            listener.onGroupAdminUpdated?(groupId: group.groupId, userId: userId, added: true)
+        }
+        self.recordAdminNotice(groupId: group.groupId, userId: userId, added: true)
+    }
+
+    public func groupAdminListDidUpdate(_ group: ChatGroup, removedAdmin userId: String) {
+        for listener in self.responseDelegates.allObjects {
+            listener.onGroupAdminUpdated?(groupId: group.groupId, userId: userId, added: false)
+        }
+        self.recordAdminNotice(groupId: group.groupId, userId: userId, added: false)
+    }
     
     public func userDidJoin(_ group: ChatGroup, users userIds: [String]) {
         for listener in self.responseDelegates.allObjects {
@@ -313,6 +335,106 @@ extension GroupServiceImplement: GroupChatThreadListener {
         for listener in self.threadDelegates.allObjects {
             listener.onGroupChatThreadEventOccur(type: .userKicked, event: event)
         }
+    }
+}
+
+private extension GroupServiceImplement {
+    func recordAdminNotice(groupId: String, userId: String, added: Bool) {
+        guard !groupId.isEmpty, !userId.isEmpty else { return }
+        let account = saveIdentifier
+        DispatchQueue.main.async {
+            guard account == saveIdentifier, !(ChatUIKitContext.shared?.currentUserId ?? "").isEmpty,
+                  let manager = ChatClient.shared().chatManager,
+                  let conversation = manager.getConversation(groupId, type: .groupChat, createIfNotExist: true) else { return }
+            let now = Date().timeIntervalSince1970
+            self.recentAdminNotices = self.recentAdminNotices.filter { now - $0.value.time < 10 }
+            let key = "\(account)/\(groupId)/\(userId)"
+            let previous = self.recentAdminNotices[key]
+            if previous?.added == added { return }
+            let messageId = "group-admin-" + UUID().uuidString
+            let name = self.cachedNickname(userId: userId)
+            let message = ChatMessage(conversationID: groupId, from: userId, to: groupId,
+                                      body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: [
+                                        "groupAdminUserId": userId, "groupAdminNickname": name,
+                                        "groupAdminAdded": added
+                                      ])
+            message.messageId = messageId
+            message.chatType = .groupChat
+            message.direction = .receive
+            message.status = .succeed
+            message.timestamp = Int64(now * 1000)
+            message.localTime = Int64(now * 1000)
+            let text = message.groupAdminNoticeText
+            message.ext?["something"] = text
+            var error: ChatError?
+            conversation.insert(message, error: &error)
+            guard error == nil else {
+                consoleLogInfo("insert group admin notice failed: \(error?.errorDescription ?? "")", type: .error)
+                return
+            }
+            self.recentAdminNotices[key] = RecentAdminNotice(added: added, time: now)
+            self.notifyAdminNotice(message: message)
+            if name == userId {
+                self.resolveNickname(userId: userId, account: account) { name in
+                    guard name != userId, manager.getMessageWithMessageId(messageId) != nil else { return }
+                    message.ext?["groupAdminNickname"] = name
+                    let text = message.groupAdminNoticeText
+                    message.ext?["something"] = text
+                    manager.update(message)
+                    self.notifyAdminNotice(message: message)
+                }
+            }
+        }
+    }
+
+    func cachedNickname(userId: String) -> String {
+        let names = [ChatUIKitContext.shared?.userCache?[userId]?.nickname,
+                     ChatUIKitContext.shared?.chatCache?[userId]?.nickname]
+        return names.compactMap { $0 }.first(where: { !$0.isEmpty }) ?? userId
+    }
+
+    func resolveNickname(userId: String, account: String, completion: @escaping (String) -> Void) {
+        let cached = self.cachedNickname(userId: userId)
+        if cached != userId {
+            completion(cached)
+            return
+        }
+        guard let userInfoManager = ChatClient.shared().userInfoManager else {
+            completion(userId)
+            return
+        }
+        userInfoManager.fetchUserInfo(byId: [userId], completion: { profiles, _ in
+            DispatchQueue.main.async {
+                guard account == saveIdentifier else { return }
+                let nickname = profiles?[userId]?.nickname ?? ""
+                completion(nickname.isEmpty ? userId : nickname)
+            }
+        })
+    }
+
+    func notifyAdminNotice(message: ChatMessage) {
+        for listener in self.responseDelegates.allObjects {
+            listener.onGroupAdminNoticeUpdated?(message: message)
+        }
+    }
+}
+
+extension ChatMessage {
+    /// Full notice text: the named person is the member whose admin role changed,
+    /// rather than the owner sending the notification.
+    public var groupAdminNoticeText: String? {
+        guard self.chatType == .groupChat,
+              let body = self.body as? ChatCustomMessageBody, body.event == EaseChatUIKit_alert_message,
+              let userId = self.ext?["groupAdminUserId"] as? String,
+              let added = self.ext?["groupAdminAdded"] as? Bool else { return nil }
+        let contextUserId = ChatUIKitContext.shared?.currentUserId ?? ""
+        let currentUserId = contextUserId.isEmpty ? (ChatClient.shared().currentUsername ?? "") : contextUserId
+        if !currentUserId.isEmpty, userId.caseInsensitiveCompare(currentUserId) == .orderedSame {
+            return (added ? "group_admin_notice_self_added" : "group_admin_notice_self_removed").chat.localize
+        }
+        let nickname = self.ext?["groupAdminNickname"] as? String ?? ""
+        return String(format: (added ? "group_admin_notice_added" : "group_admin_notice_removed").chat.localize,
+                      nickname.isEmpty ? userId : nickname)
     }
 }
 

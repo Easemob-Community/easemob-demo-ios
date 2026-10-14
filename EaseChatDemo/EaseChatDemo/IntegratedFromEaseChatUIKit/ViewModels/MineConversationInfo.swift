@@ -12,6 +12,9 @@ import EaseCallUIKit
 class MineConversationInfo: ConversationInfo {
     override func contentAttribute() -> NSAttributedString {
         guard let message = self.lastMessage else { return NSAttributedString() }
+        if message.groupAdminNoticeText != nil {
+            return super.contentAttribute()
+        }
         var text = NSMutableAttributedString()
         if let dic = message.ext?["ease_chat_uikit_user_info"] as? Dictionary<String,Any> {
             let profile = ChatUserProfile()

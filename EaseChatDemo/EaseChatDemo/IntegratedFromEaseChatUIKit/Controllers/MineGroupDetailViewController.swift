@@ -160,6 +160,7 @@ final class MineGroupDetailViewController: GroupInfoViewController {
             guard let `self` = self else { return }
             if error == nil, let group = group {
                 self.chatGroup = group
+                self.refreshManagementItems()
                 let showName = self.chatGroup.groupName.isEmpty ? groupId:self.chatGroup.groupName
                 self.header.nickName.text = showName
                 self.header.userState = .offline
@@ -175,6 +176,7 @@ final class MineGroupDetailViewController: GroupInfoViewController {
                 ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
             } else {
                 self.chatGroup = ChatGroup(id: groupId)
+                self.refreshManagementItems()
                 self.showToast(toast: "\(error?.errorDescription ?? "")")
             }
            

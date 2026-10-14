@@ -23,7 +23,7 @@ import UIKit
     
     public private(set) var chatService: ChatService?
     
-    public private(set) var groupService: GroupService? = GroupServiceImplement()
+    public private(set) var groupService: GroupService? = ChatUIKitClient.shared.groupService
         
     public private(set) var multiService: MultiDeviceService? = MultiDeviceServiceImplement()
     

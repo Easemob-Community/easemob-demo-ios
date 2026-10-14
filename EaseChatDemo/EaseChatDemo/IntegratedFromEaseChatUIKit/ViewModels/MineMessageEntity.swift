@@ -61,7 +61,11 @@ class MineMessageEntity: MessageEntity {
             switch body.event {
             case EaseChatUIKit_alert_message:
                 if let something = self.message.ext?["something"] as? String {
-                    if let threadName = self.message.ext?["threadName"] as? String {
+                    if let notice = self.message.groupAdminNoticeText {
+                        text.append(NSAttributedString {
+                            AttributedText(notice).foregroundColor(EaseChatUIKit.Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor7).font(UIFont.theme.bodySmall).lineHeight(multiple: 1.15, minimum: 14).alignment(.center)
+                        })
+                    } else if let threadName = self.message.ext?["threadName"] as? String {
                         let range = something.chat.rangeOfString(threadName)
                         text.append(NSAttributedString {
                             AttributedText(something).foregroundColor(EaseChatUIKit.Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor7).font(UIFont.theme.bodySmall).lineHeight(multiple: 1.15, minimum: 14).alignment(.center)

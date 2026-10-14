@@ -12,16 +12,27 @@ import UIKit
 @objc public class ConversationServiceImplement: NSObject {
     
     private var responseDelegates: NSHashTable<ConversationServiceListener> = NSHashTable<ConversationServiceListener>.weakObjects()
+
+    private let groupService: GroupService = ChatUIKitClient.shared.groupService
     
     public private(set) var eventsNotifiers: NSHashTable<ConversationEmergencyListener> = NSHashTable<ConversationEmergencyListener>.weakObjects()
     
     public override init() {
         super.init()
         ChatClient.shared().chatManager?.add(self, delegateQueue: .main)
+        self.groupService.bindGroupEventsListener(listener: self)
     }
     
     deinit {
+        self.groupService.unbindGroupEventsListener(listener: self)
         ChatClient.shared().chatManager?.remove(self)
+    }
+
+}
+
+extension ConversationServiceImplement: GroupServiceListener {
+    public func onGroupAdminNoticeUpdated(message: ChatMessage) {
+        self.notifyHandler(message: message, local: true)
     }
 }
 

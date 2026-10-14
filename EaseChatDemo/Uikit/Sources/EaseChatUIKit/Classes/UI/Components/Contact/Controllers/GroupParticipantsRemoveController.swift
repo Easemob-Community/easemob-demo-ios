@@ -9,7 +9,7 @@ import UIKit
 
 @objc open class GroupParticipantsRemoveController: UIViewController {
     
-    public let service: GroupService = GroupServiceImplement()
+    public let service: GroupService = ChatUIKitClient.shared.groupService
     
     private var deleteClosure: (([String]) -> Void)?
     

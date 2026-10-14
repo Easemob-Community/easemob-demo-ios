@@ -85,7 +85,7 @@ import UIKit
     
     public private(set) var chatService: ChatService?
     
-    public private(set) var groupService: GroupService? = GroupServiceImplement()
+    public private(set) var groupService: GroupService? = ChatUIKitClient.shared.groupService
     
     public private(set) var multiService: MultiDeviceService? = MultiDeviceServiceImplement()
     
@@ -103,7 +103,7 @@ import UIKit
             self.groupService?.bindGroupChatThreadEventListener(listener: self)
         }
     }
-    
+
     /// Bind ``IMessageListViewDriver``
     /// - Parameters:
     ///   - driver: ``IMessageListViewDriver``
@@ -1086,8 +1086,15 @@ extension MessageListViewModel: ChatResponseListener {
 }
 
 extension MessageListViewModel: GroupServiceListener {
-    
-    
+    public func onGroupAdminNoticeUpdated(message: ChatMessage) {
+        guard self.chatType == .group, message.conversationId == self.to else { return }
+        if self.driver?.dataSource.contains(where: { $0.messageId == message.messageId }) == true {
+            self.driver?.processMessage(operation: .edit, message: message)
+        } else {
+            self.messageDidReceived(message: message)
+        }
+    }
+
     public func onCurrentUserLeft(groupId: String, reason: GroupLeaveReason) {
 
     }

@@ -613,7 +613,11 @@ public let urlPreviewImageHeight = CGFloat(137)
             switch body.event {
             case EaseChatUIKit_alert_message:
                 if let something = self.message.ext?["something"] as? String {
-                    if let threadName = self.message.ext?["threadName"] as? String {
+                    if let notice = self.message.groupAdminNoticeText {
+                        text.append(NSAttributedString {
+                            AttributedText(notice).foregroundColor(Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor7).font(UIFont.theme.bodySmall).lineHeight(multiple: 1.15, minimum: 14).alignment(.center)
+                        })
+                    } else if let threadName = self.message.ext?["threadName"] as? String {
                         let range = something.chat.rangeOfString(threadName)
                         text.append(NSAttributedString {
                             AttributedText(something).foregroundColor(Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor7).font(UIFont.theme.bodySmall).lineHeight(multiple: 1.15, minimum: 14).alignment(.center)
@@ -1044,6 +1048,7 @@ extension ChatMessage {
     
     /// Message show type on the conversation list.
     @objc open var showType: String {
+        if let notice = self.groupAdminNoticeText { return notice }
         var text = "[unknown]".chat.localize
         switch self.body.type {
         case .text: text = (self.body as? ChatTextMessageBody)?.text ?? ""
@@ -1096,6 +1101,7 @@ extension ChatMessage {
     
     /// Message show content.
     @objc open var showContent: String {
+        if let notice = self.groupAdminNoticeText { return notice }
         var text = ""
         switch self.body.type {
         case .text: text = (self.body as? ChatTextMessageBody)?.text ?? ""

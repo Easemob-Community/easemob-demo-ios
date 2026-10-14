@@ -210,6 +210,11 @@ extension ConversationListCell: ThemeSwitchProtocol {
     
     @objc open func contentAttribute() -> NSAttributedString {
         guard let message = self.lastMessage else { return NSAttributedString() }
+        if let notice = message.groupAdminNoticeText {
+            return NSAttributedString {
+                AttributedText(notice).foregroundColor(Theme.style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor5).font(UIFont.theme.bodyMedium)
+            }
+        }
         var text = NSMutableAttributedString()
         let from = message.from
         let mentionText = "Mentioned".chat.localize
