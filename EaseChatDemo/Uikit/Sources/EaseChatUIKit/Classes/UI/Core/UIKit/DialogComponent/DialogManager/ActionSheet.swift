@@ -212,11 +212,14 @@ extension ActionSheet: UITableViewDelegate,UITableViewDataSource {
 
 /// Compact action content used by DialogManager's anchored overload.
 /// Kept separate from ActionSheet so bottom sheets retain their cancel button and drag indicator.
-final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
+final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate, ThemeSwitchProtocol {
     private let items: [ActionSheetItemProtocol]
     private let menuList = UITableView(frame: .zero, style: .plain)
     private let arrow = CAShapeLayer()
-    private let menuColor = UIColor(white: 0.3, alpha: 1)
+    private var themeStyle = Theme.style
+    private var menuColor: UIColor {
+        themeStyle == .dark ? UIColor.theme.neutralColor2 : UIColor.theme.neutralColor98
+    }
     private let arrowHeight: CGFloat = 8
     private var font: UIFont { UIFont.preferredFont(forTextStyle: .body) }
 
@@ -231,12 +234,12 @@ final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
         super.init(frame: .zero)
         backgroundColor = .clear
         accessibilityViewIsModal = true
-        arrow.fillColor = menuColor.cgColor
         layer.addSublayer(arrow)
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOffset = CGSize(width: 0, height: 4)
+        layer.shadowRadius = 8
         menuList.dataSource = self
         menuList.delegate = self
-        menuList.backgroundColor = menuColor
-        menuList.separatorColor = UIColor(white: 1, alpha: 0.12)
         menuList.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 0)
         menuList.tableFooterView = UIView()
         menuList.contentInsetAdjustmentBehavior = .never
@@ -244,8 +247,9 @@ final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
         menuList.layer.cornerRadius = 6
         menuList.clipsToBounds = true
         menuList.bounces = false
-        menuList.indicatorStyle = .white
         addSubview(menuList)
+        Theme.registerSwitchThemeViews(view: self)
+        switchTheme(style: Theme.style)
     }
 
     required init?(coder: NSCoder) {
@@ -285,6 +289,18 @@ final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
         path.addLine(to: CGPoint(x: x + 8, y: arrowHeight))
         path.close()
         arrow.path = path.cgPath
+        path.append(UIBezierPath(roundedRect: listFrame, cornerRadius: menuList.layer.cornerRadius))
+        layer.shadowPath = path.cgPath
+    }
+
+    func switchTheme(style: ThemeStyle) {
+        themeStyle = style
+        arrow.fillColor = menuColor.cgColor
+        menuList.backgroundColor = menuColor
+        menuList.separatorColor = style == .dark ? UIColor.theme.neutralColor3 : UIColor.theme.neutralColor9
+        menuList.indicatorStyle = style == .dark ? .white : .black
+        layer.shadowOpacity = style == .dark ? 0.2 : 0.12
+        menuList.reloadData()
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -312,7 +328,12 @@ final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "ActionMenuCell") ?? UITableViewCell(style: .default, reuseIdentifier: "ActionMenuCell")
         let item = items[indexPath.row]
-        let color: UIColor = item.type == .destructive ? UIColor.theme.errorColor6 : .white
+        let color: UIColor
+        if item.type == .destructive {
+            color = themeStyle == .dark ? UIColor.theme.errorColor6 : UIColor.theme.errorColor5
+        } else {
+            color = themeStyle == .dark ? UIColor.theme.neutralColor98 : UIColor.theme.neutralColor1
+        }
         var content = cell.defaultContentConfiguration()
         content.text = item.title
         content.textProperties.font = font
@@ -325,7 +346,7 @@ final class ActionMenu: UIView, UITableViewDataSource, UITableViewDelegate {
         cell.contentConfiguration = content
         cell.backgroundColor = menuColor
         let selectedBackground = UIView()
-        selectedBackground.backgroundColor = UIColor(white: 1, alpha: 0.12)
+        selectedBackground.backgroundColor = themeStyle == .dark ? UIColor.theme.neutralColor3 : UIColor.theme.neutralColor95
         cell.selectedBackgroundView = selectedBackground
         cell.accessibilityLabel = item.title
         cell.accessibilityTraits = .button
