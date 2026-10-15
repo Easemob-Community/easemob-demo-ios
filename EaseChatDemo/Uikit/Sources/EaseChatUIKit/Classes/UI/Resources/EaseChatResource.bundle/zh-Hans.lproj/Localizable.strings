@@ -75,6 +75,9 @@
 "group_admin_notice_removed" = "%@从群管理员中被移除";
 "group_admin_notice_self_added" = "您被添加为管理员";
 "group_admin_notice_self_removed" = "您从群管理员中被移除";
+"group_moderator_recall_notice" = "%@撤回了%@的一条消息";
+"group_moderator_recall_self_notice" = "%@撤回了您的一条消息";
+"group_recall_unknown_member" = "群成员";
 "group_admin_settings_entry" = "添加管理员";
 "group_admin_settings_title" = "设置管理员";
 "group_admin_remove_action" = "移除管理员";

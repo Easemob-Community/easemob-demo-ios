@@ -36,9 +36,12 @@ import UIKit
     @objc public required init(chatThread: GroupChatThread?) {
         self.to = chatThread?.threadId ?? ""
         self.chatThread = chatThread
-        self.chatService = ChatServiceImplement(to: self.to)
+        let service = ChatServiceImplement(to: self.to)
+        service.parentGroupId = chatThread?.parentId ?? ""
+        self.chatService = service
         super.init()
         self.chatService?.bindChatEventsListener(listener: self)
+        self.groupService?.bindGroupEventsListener(listener: self)
         self.multiService?.bindMultiDeviceListener(listener: self)
         self.groupService?.bindGroupChatThreadEventListener(listener: self)
         if let groupId = chatThread?.parentId {
@@ -317,15 +320,26 @@ import UIKit
     }
     
     @objc open func recallAction(message: ChatMessage) {
-        if let recall = self.constructMessage(text: "recalled a message".chat.localize, type: .alert, extensionInfo: [:]) {
-            recall.messageId = message.messageId
-            recall.timestamp = message.timestamp
-            recall.from = message.from
-            ChatClient.shared().chatManager?.getConversationWithConvId(message.conversationId)?.insert(recall, error: nil)
-            self.driver?.processMessage(operation: .recall, message: recall)
+        let operatorId = ChatUIKitContext.shared?.currentUserId ?? ChatClient.shared().currentUsername ?? ""
+        self.applyRecallNotice(MessageRecallNotice(message: message, operatorId: operatorId, parentGroupId: self.chatThread?.parentId ?? ""))
+    }
+
+    @nonobjc private func applyRecallNotice(_ notice: MessageRecallNotice) {
+        guard notice.conversationId == self.to else { return }
+        let account = saveIdentifier
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, account == saveIdentifier else { return }
+            let message = notice.makeMessage()
+            if notice.isVisible {
+                notice.store(message)
+                self.driver?.processMessage(operation: .recall, message: message)
+            } else {
+                ChatClient.shared().chatManager?.getConversationWithConvId(notice.conversationId)?.deleteMessage(withId: notice.messageId, error: nil)
+                self.driver?.processMessage(operation: .delete, message: message)
+            }
         }
     }
-    
+
     @objc open func deleteMessage(message: ChatMessage) {
         DialogManager.shared.showAlert(title: "Delete Message Alert".chat.localize, content: "Delete warning".chat.localize, showCancel: true, showConfirm: true) { [weak self] _ in
             guard let `self` = self else { return }
@@ -767,19 +781,9 @@ extension ChatThreadViewModel: ChatResponseListener {
         - recallInfo: The recall information containing the recalled message.
      */
     @objc open func messageDidRecalled(recallInfo: RecallInfo) {
-        if let recallMessage = recallInfo.recallMessage,recallMessage.conversationId == self.to {
-            recallMessage.from = recallInfo.recallBy
-            self.recallAction(message: recallMessage)
-        } else {
-            if let recall = self.constructMessage(text: "recalled a message".chat.localize, type: .alert, extensionInfo: [:]) {
-                recall.messageId = recallInfo.recallMessageId
-                recall.timestamp = Int64(Date().timeIntervalSince1970*1000)
-                recall.from = recallInfo.recallBy
-                self.driver?.processMessage(operation: .recall, message: recall)
-            }
-        }
+        self.applyRecallNotice(MessageRecallNotice(info: recallInfo, parentGroupId: self.chatThread?.parentId ?? ""))
     }
-    
+
     public func onMessageDidEdited(message: ChatMessage) {
         if message.conversationId == self.to {
             self.messageDidEdited(message: message)
@@ -857,6 +861,23 @@ extension ChatThreadViewModel: ChatResponseListener {
     
     public func messagesAlreadyRead(conversationId: String) {
         self.driver?.readAllMessages()
+    }
+}
+
+extension ChatThreadViewModel: GroupServiceListener {
+    public func onGroupAdminUpdated(groupId: String, userId: String, added: Bool) {
+        self.removeInvisibleRecallNotices(groupId: groupId)
+    }
+
+    public func onGroupOwnerUpdated(groupId: String, ownerId: String, userId: String) {
+        self.removeInvisibleRecallNotices(groupId: groupId)
+    }
+
+    private func removeInvisibleRecallNotices(groupId: String) {
+        guard groupId == self.chatThread?.parentId else { return }
+        for message in self.driver?.dataSource.filter({ $0.hidesModeratorRecallNotice }) ?? [] {
+            self.driver?.processMessage(operation: .delete, message: message)
+        }
     }
 }
 

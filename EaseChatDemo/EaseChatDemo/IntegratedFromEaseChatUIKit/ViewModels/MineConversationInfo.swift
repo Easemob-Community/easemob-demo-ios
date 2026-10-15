@@ -12,7 +12,8 @@ import EaseCallUIKit
 class MineConversationInfo: ConversationInfo {
     override func contentAttribute() -> NSAttributedString {
         guard let message = self.lastMessage else { return NSAttributedString() }
-        if message.groupAdminNoticeText != nil {
+        if message.hidesModeratorRecallNotice { return NSAttributedString() }
+        if message.localSystemNoticeText != nil {
             return super.contentAttribute()
         }
         var text = NSMutableAttributedString()

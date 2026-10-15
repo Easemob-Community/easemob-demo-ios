@@ -68,6 +68,9 @@
 "group_admin_notice_removed" = "%@ was removed as a group admin";
 "group_admin_notice_self_added" = "You were added as a group admin";
 "group_admin_notice_self_removed" = "You were removed as a group admin";
+"group_moderator_recall_notice" = "%@ recalled a message from %@";
+"group_moderator_recall_self_notice" = "%@ recalled one of your messages";
+"group_recall_unknown_member" = "a group member";
 "group_admin_settings_entry" = "Add Admin";
 "group_admin_settings_title" = "Manage Admins";
 "group_admin_remove_action" = "Remove Admin";

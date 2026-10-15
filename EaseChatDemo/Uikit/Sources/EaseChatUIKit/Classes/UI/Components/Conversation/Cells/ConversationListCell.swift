@@ -210,7 +210,8 @@ extension ConversationListCell: ThemeSwitchProtocol {
     
     @objc open func contentAttribute() -> NSAttributedString {
         guard let message = self.lastMessage else { return NSAttributedString() }
-        if let notice = message.groupAdminNoticeText {
+        if message.hidesModeratorRecallNotice { return NSAttributedString() }
+        if let notice = message.localSystemNoticeText {
             return NSAttributedString {
                 AttributedText(notice).foregroundColor(Theme.style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor5).font(UIFont.theme.bodyMedium)
             }

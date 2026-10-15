@@ -61,7 +61,7 @@ class MineMessageEntity: MessageEntity {
             switch body.event {
             case EaseChatUIKit_alert_message:
                 if let something = self.message.ext?["something"] as? String {
-                    if let notice = self.message.groupAdminNoticeText {
+                    if let notice = self.message.localSystemNoticeText {
                         text.append(NSAttributedString {
                             AttributedText(notice).foregroundColor(EaseChatUIKit.Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor7).font(UIFont.theme.bodySmall).lineHeight(multiple: 1.15, minimum: 14).alignment(.center)
                         })

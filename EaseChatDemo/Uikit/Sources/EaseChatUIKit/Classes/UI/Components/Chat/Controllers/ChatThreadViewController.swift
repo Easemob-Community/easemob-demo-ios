@@ -429,15 +429,11 @@ extension ChatThreadViewController: MessageListDriverEventsListener {
         }
         messageActions.removeAll { $0.tag == "Pin" }
         messageActions.removeAll { $0.tag == "Topic" }
-        if message.message.direction != .send {
+        let group = ChatGroup(id: self.profile.parentId)
+        let canRecallGroupMessages = group?.permissionType == .owner || group?.permissionType == .admin
+        if !canRecallGroupMessages, message.message.direction != .send {
             messageActions.removeAll { $0.tag == "Recall" }
-        } else {
-            let duration = UInt(abs(Double(Date().timeIntervalSince1970) - Double(message.message.timestamp/1000)))
-            if duration > Appearance.chat.recallExpiredTime {
-                messageActions.removeAll { $0.tag == "Recall" }
-            }
         }
-//        messageActions.removeAll { $0.tag == "Recall" }
         messageActions.removeAll { $0.tag == "Delete" }
         return messageActions
     }

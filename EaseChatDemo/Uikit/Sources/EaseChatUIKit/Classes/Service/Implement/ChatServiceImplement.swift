@@ -11,6 +11,9 @@ import UIKit
     private var responseDelegates: NSHashTable<ChatResponseListener> = NSHashTable<ChatResponseListener>.weakObjects()
     
     public private(set) var to = ""
+
+    /// Parent group for thread recalls; the SDK recall callback carries the thread ID.
+    var parentGroupId = ""
     
     @objc required public init(to: String) {
         super.init()
@@ -67,7 +70,9 @@ extension ChatServiceImplement: ChatService {
     }
     
     public func recall(messageId: String, completion: @escaping (ChatError?) -> Void) {
-        ChatClient.shared().chatManager?.recallMessage(withMessageId: messageId, completion: { error in
+        let original = ChatClient.shared().chatManager?.getMessageWithMessageId(messageId)
+        let payload = original.flatMap { MessageRecallNotice(message: $0, operatorId: ChatUIKitContext.shared?.currentUserId ?? ChatClient.shared().currentUsername ?? "", parentGroupId: self.parentGroupId).payload }
+        ChatClient.shared().chatManager?.recallMessage(withMessageId: messageId, ext: payload, completion: { error in
             completion(error)
         })
     }
@@ -129,6 +134,10 @@ extension ChatServiceImplement: ChatService {
     }
     
     public func loadMessages(start messageId: String, cursor: String?, pageSize: UInt, searchMessage: Bool, completion: @escaping (ChatError?, [ChatMessage], String?) -> Void) {
+        let finish: (ChatError?, [ChatMessage], String?) -> Void = { error, messages, cursor in
+            completion(error, messages.filter { !$0.hidesModeratorRecallNotice }, cursor)
+        }
+
         if ChatUIKitContext.shared?.chatCache == nil {
             ChatUIKitContext.shared?.chatCache = [String:ChatUserProfileProtocol]()
         }
@@ -168,7 +177,7 @@ extension ChatServiceImplement: ChatService {
                         }
                     }
                 }
-                completion(error,messages ?? [],nil)
+                finish(error,messages ?? [],nil)
             })
         } else {
             let type = ChatClient.shared().chatManager?.getConversationWithConvId(self.to)?.type ?? .chat
@@ -200,7 +209,7 @@ extension ChatServiceImplement: ChatService {
                         for message in messages { cacheSenderInfo(message) }
                     }
                     // Anchored search is a one-shot fetch, so there is no continuation cursor.
-                    completion(error,result?.list ?? [],nil)
+                    finish(error,result?.list ?? [],nil)
                 })
                 return
             }
@@ -210,7 +219,7 @@ extension ChatServiceImplement: ChatService {
                 if error == nil, let messages = result?.list {
                     for message in messages { cacheSenderInfo(message) }
                 }
-                completion(error,result?.list ?? [],result?.cursor)
+                finish(error,result?.list ?? [],result?.cursor)
             })
         }
     }
@@ -358,3 +367,136 @@ extension ChatServiceImplement: ChatEventsListener {
     
 }
 
+
+/// Keeps the recaller and original sender separate, including offline SDK callbacks.
+struct MessageRecallNotice {
+    let conversationId: String
+    let messageId: String
+    let operatorId: String
+    let senderId: String
+    let operatorNickname: String
+    let senderNickname: String
+    let groupId: String
+    let isGroup: Bool
+    let isThread: Bool
+    let timestamp: Int64
+
+    init(message: ChatMessage, operatorId: String, parentGroupId: String = "") {
+        self.conversationId = message.conversationId
+        self.messageId = message.messageId
+        self.operatorId = operatorId
+        self.senderId = message.ext?["recallSenderId"] as? String ?? message.from
+        self.operatorNickname = Self.nickname(userId: operatorId)
+        self.senderNickname = Self.nickname(userId: self.senderId, fallback: message.senderInfo?.nickname ?? "")
+        self.isGroup = message.chatType == .groupChat
+        self.isThread = message.isChatThreadMessage
+        self.groupId = parentGroupId.isEmpty ? message.conversationId : parentGroupId
+        self.timestamp = message.timestamp
+    }
+
+    init(info: RecallInfo, parentGroupId: String = "") {
+        let data = info.ext?.data(using: .utf8)
+        let metadata = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        let original = info.recallMessage
+        self.conversationId = original?.conversationId ?? info.conversationId
+        self.messageId = info.recallMessageId
+        self.operatorId = info.recallBy
+        self.senderId = original?.ext?["recallSenderId"] as? String ?? original?.from ?? metadata["recallSenderId"] as? String ?? ""
+        self.operatorNickname = Self.nickname(userId: self.operatorId, fallback: metadata["recallOperatorNickname"] as? String ?? "")
+        self.senderNickname = Self.nickname(userId: self.senderId, fallback: original?.senderInfo?.nickname ?? metadata["recallSenderNickname"] as? String ?? "")
+        let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(self.conversationId)
+        self.isGroup = original.map { $0.chatType == .groupChat } ?? conversation.map { $0.type == .groupChat } ?? (metadata["recallGroupId"] != nil)
+        self.isThread = !parentGroupId.isEmpty || (original?.isChatThreadMessage ?? conversation?.isChatThread ?? (metadata["recallIsThread"] as? Bool ?? false))
+        let savedGroupId = metadata["recallGroupId"] as? String ?? self.conversationId
+        self.groupId = parentGroupId.isEmpty ? (self.isThread ? savedGroupId : self.conversationId) : parentGroupId
+        self.timestamp = original?.timestamp ?? metadata["recallTimestamp"] as? Int64 ?? Int64(Date().timeIntervalSince1970 * 1000)
+    }
+
+    var isModeratorRecall: Bool {
+        self.isGroup && (self.senderId.isEmpty || self.senderId.caseInsensitiveCompare(self.operatorId) != .orderedSame)
+    }
+
+    var isVisible: Bool {
+        guard self.isModeratorRecall else { return true }
+        let group = ChatGroup(id: self.groupId)
+        return group?.permissionType == .owner || group?.permissionType == .admin
+    }
+
+    var payload: String? {
+        guard self.isGroup else { return nil }
+        let metadata: [String: Any] = ["recallSenderId": self.senderId, "recallSenderNickname": self.senderNickname,
+                                       "recallOperatorNickname": self.operatorNickname, "recallGroupId": self.groupId,
+                                       "recallIsThread": self.isThread, "recallTimestamp": self.timestamp]
+        guard let data = try? JSONSerialization.data(withJSONObject: metadata) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    func makeMessage() -> ChatMessage {
+        var metadata: [String: Any] = ["something": "recalled a message".chat.localize]
+        if self.isModeratorRecall {
+            metadata["recallOperatorId"] = self.operatorId
+            metadata["recallSenderId"] = self.senderId
+            metadata["recallOperatorNickname"] = self.operatorNickname
+            metadata["recallSenderNickname"] = self.senderNickname
+            metadata["recallGroupId"] = self.groupId
+        }
+        let message = ChatMessage(conversationID: self.conversationId, from: self.operatorId, to: self.conversationId,
+                                  body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: metadata)
+        message.messageId = self.messageId
+        message.chatType = self.isGroup ? .groupChat : .chat
+        message.isChatThreadMessage = self.isThread
+        message.direction = .receive
+        message.status = .succeed
+        message.timestamp = self.timestamp
+        message.localTime = Int64(Date().timeIntervalSince1970 * 1000)
+        if let text = message.groupRecallNoticeText {
+            message.ext?["something"] = text
+        }
+        return message
+    }
+
+    func store(_ message: ChatMessage) {
+        guard let manager = ChatClient.shared().chatManager else { return }
+        if manager.getMessageWithMessageId(self.messageId) != nil {
+            manager.update(message)
+        } else {
+            manager.getConversation(self.conversationId, type: self.isGroup ? .groupChat : .chat,
+                                    createIfNotExist: true, isThread: self.isThread)?.insert(message, error: nil)
+        }
+    }
+
+    static func nickname(userId: String, fallback: String = "") -> String {
+        let names = [ChatUIKitContext.shared?.userCache?[userId]?.nickname,
+                     ChatUIKitContext.shared?.chatCache?[userId]?.nickname,
+                     ChatUIKitContext.shared?.currentUserId == userId ? ChatUIKitContext.shared?.currentUser?.nickname : nil,
+                     fallback]
+        return names.compactMap { $0 }.first(where: { !$0.isEmpty }) ?? (userId.isEmpty ? "group_recall_unknown_member".chat.localize : userId)
+    }
+}
+
+extension ChatMessage {
+    public var groupRecallNoticeText: String? {
+        guard let body = self.body as? ChatCustomMessageBody, body.event == EaseChatUIKit_alert_message,
+              let operatorId = self.ext?["recallOperatorId"] as? String,
+              let senderId = self.ext?["recallSenderId"] as? String else { return nil }
+        let operatorName = MessageRecallNotice.nickname(userId: operatorId, fallback: self.ext?["recallOperatorNickname"] as? String ?? "")
+        let contextUserId = ChatUIKitContext.shared?.currentUserId ?? ""
+        let currentUserId = contextUserId.isEmpty ? (ChatClient.shared().currentUsername ?? "") : contextUserId
+        if !currentUserId.isEmpty, senderId.caseInsensitiveCompare(currentUserId) == .orderedSame {
+            return String(format: "group_moderator_recall_self_notice".chat.localize, operatorName)
+        }
+        let senderName = MessageRecallNotice.nickname(userId: senderId, fallback: self.ext?["recallSenderNickname"] as? String ?? "")
+        return String(format: "group_moderator_recall_notice".chat.localize, operatorName, senderName)
+    }
+
+    public var localSystemNoticeText: String? {
+        self.groupAdminNoticeText ?? self.groupRecallNoticeText
+    }
+
+    public var hidesModeratorRecallNotice: Bool {
+        guard self.ext?["recallOperatorId"] != nil,
+              let groupId = self.ext?["recallGroupId"] as? String else { return false }
+        let group = ChatGroup(id: groupId)
+        return group?.permissionType != .owner && group?.permissionType != .admin
+    }
+}
