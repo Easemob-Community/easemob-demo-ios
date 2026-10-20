@@ -20,12 +20,20 @@ import UIKit
     public private(set) lazy var messageContent: UILabel = {
         UILabel(frame: CGRect(x: self.avatar.frame.maxX+12, y: self.avatar.frame.maxX-20, width: self.contentView.frame.width-self.avatar.frame.maxX-12-16-50, height: 16)).backgroundColor(.clear)
     }()
+    
+    public private(set) lazy var separatorLine: UIView = {
+        self.createSeparatorLine()
+    }()
+    
+    @objc open func createSeparatorLine() -> UIView {
+        UIView(frame: CGRect(x: self.conversationName.frame.minX, y: self.contentView.frame.height-0.5, width: self.contentView.frame.width-self.conversationName.frame.minX, height: 0.5))
+    }
 
     @objc public required override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         self.contentView.backgroundColor = .clear
         self.backgroundColor = .clear
-        self.contentView.addSubViews([self.avatar,self.conversationName,self.messageContent])
+        self.contentView.addSubViews([self.avatar,self.conversationName,self.messageContent,self.separatorLine])
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
     }
@@ -39,6 +47,7 @@ import UIKit
         self.avatar.center = CGPoint(x: self.avatar.center.x, y: self.contentView.center.y)
         self.conversationName.frame =  CGRect(x: self.avatar.frame.maxX+12, y: 10, width: self.contentView.frame.width-self.avatar.frame.maxX-12-16-50, height: 18)
         self.messageContent.frame = CGRect(x: self.avatar.frame.maxX+12, y: self.avatar.frame.maxY-20, width: self.contentView.frame.width-self.avatar.frame.maxX-12-16-50, height: 18)
+        self.separatorLine.frame = CGRect(x: self.conversationName.frame.minX, y: self.contentView.frame.height-0.5, width: self.contentView.frame.width-self.conversationName.frame.minX, height: 0.5)
     }
     
     func refresh(message: ChatMessage,info: ChatUserProfileProtocol,keyword: String) {
@@ -69,7 +78,8 @@ import UIKit
 
 extension SearchHistoryMessageCell: ThemeSwitchProtocol {
     public func switchTheme(style: ThemeStyle) {
-        self.conversationName.textColor = style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1    
+        self.conversationName.textColor = style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1
+        self.separatorLine.backgroundColor = style == .dark ? UIColor.theme.neutralColor3:UIColor.theme.neutralColor9
     }
     
 }
