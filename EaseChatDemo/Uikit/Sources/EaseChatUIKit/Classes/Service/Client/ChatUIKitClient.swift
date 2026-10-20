@@ -46,6 +46,9 @@ public let cache_update_notification = "ChatUIKitContextUpdateCache"
     
     /// Contact-related protocol implementation class.
     public private(set) lazy var contactService: ContactServiceProtocol? = nil
+
+    /// Shared group service persists SDK events independently of visible pages.
+    public private(set) lazy var groupService: GroupService = GroupServiceImplement()
     
     /// Options function wrapper.
     public var option: ChatUIKitOptions = ChatUIKitOptions()
@@ -81,6 +84,9 @@ public let cache_update_notification = "ChatUIKitContextUpdateCache"
             self.contactService = ContactServiceImplement()
         }
         ChatClient.shared().add(self, delegateQueue: .main)
+        if error == nil {
+            self.groupService = GroupServiceImplement()
+        }
         return error
     }
     

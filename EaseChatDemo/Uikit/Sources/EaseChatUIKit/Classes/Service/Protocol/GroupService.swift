@@ -267,6 +267,12 @@ import Foundation
     ///   - ownerId: ID of the group owner.
     ///   - userId: ID of the user.
     @objc optional func onGroupOwnerUpdated(groupId: String,ownerId: String,userId: String)
+
+    /// A member's admin role changed. Delivered directly from the SDK group event.
+    @objc optional func onGroupAdminUpdated(groupId: String, userId: String, added: Bool)
+
+    /// A local admin notice was inserted or refreshed after its nickname was fetched.
+    @objc optional func onGroupAdminNoticeUpdated(message: ChatMessage)
     
     /// When some user joined group.
     /// - Parameters:

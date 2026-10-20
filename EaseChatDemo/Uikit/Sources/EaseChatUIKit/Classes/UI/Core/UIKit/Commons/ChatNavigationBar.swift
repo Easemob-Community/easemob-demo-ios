@@ -110,7 +110,7 @@ import UIKit
     }
     
     public private(set) lazy var titleLabel: UILabel = {
-        UILabel(frame: CGRect(x: self.avatar.frame.maxX+4, y: (nearStatusBar ? StatusBarHeight:0)+2, width: ScreenWidth-self.avatar.frame.maxX*2-8*3, height: 22)).font(UIFont.theme.headlineSmall).textColor(UIColor.theme.neutralColor1).backgroundColor(.clear).tag(2)
+        UILabel(frame: CGRect(x: self.avatar.frame.maxX+4, y: (nearStatusBar ? StatusBarHeight:0)+2, width: ScreenWidth-self.avatar.frame.maxX*2-8*3, height: 22)).font(UIFont.theme.headlineMedium).textColor(UIColor.theme.neutralColor1).backgroundColor(.clear).tag(2)
     }()
     
     public private(set) lazy var detail: UILabel = {
@@ -301,7 +301,7 @@ extension ChatNavigationBar: UICollectionViewDataSource,UICollectionViewDelegate
         if self.originalRenderRightImage {
             cell?.imageView.image = self.rightImages[safe: indexPath.row]
         } else {
-            cell?.imageView.image = self.rightImages[safe: indexPath.row]?.withTintColor(Theme.style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor3)
+            cell?.imageView.image = self.rightImages[safe: indexPath.row]?.withTintColor(Theme.style == .dark ? UIColor.theme.neutralColor9:UIColor.theme.neutralColor3, renderingMode: .alwaysOriginal)
         }
         return cell ?? UICollectionViewCell()
     }

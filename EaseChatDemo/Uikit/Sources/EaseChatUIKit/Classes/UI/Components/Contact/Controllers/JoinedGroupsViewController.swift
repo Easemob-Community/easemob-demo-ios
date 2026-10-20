@@ -9,7 +9,7 @@ import UIKit
 
 @objcMembers open class JoinedGroupsViewController: UIViewController {
     
-    private let groupService = GroupServiceImplement()
+    private let groupService = ChatUIKitClient.shared.groupService
     
     public private(set) var datas: [ChatUserProfileProtocol] = [] {
         didSet {

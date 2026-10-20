@@ -21,7 +21,7 @@ import UIKit
     
     private lazy var contactService: ContactServiceProtocol = ChatUIKitClient.shared.contactService ?? ContactServiceImplement()
     
-    private let groupService: GroupService = GroupServiceImplement()
+    private let groupService: GroupService = ChatUIKitClient.shared.groupService
         
     private var datas = [ChatUserProfileProtocol]() {
         didSet {

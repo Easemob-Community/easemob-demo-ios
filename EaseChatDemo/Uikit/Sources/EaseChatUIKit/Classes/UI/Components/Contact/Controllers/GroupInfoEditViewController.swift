@@ -9,7 +9,7 @@ import UIKit
 
 @objc open class GroupInfoEditViewController: UIViewController {
     
-    private let service: GroupService = GroupServiceImplement()
+    private let service: GroupService = ChatUIKitClient.shared.groupService
     
     public private(set) var groupId: String = ""
     

@@ -18,6 +18,7 @@ import UIKit
     case normal
     case mention
     case transferOwner
+    case manageAdmins
 }
 
 /// A view controller that displays the participants of a group.
@@ -27,11 +28,15 @@ import UIKit
     
     private var recursiveCount = 5
     
-    private let service: GroupService = GroupServiceImplement()
+    private let service: GroupService = ChatUIKitClient.shared.groupService
     
     private var cursor = ""
     
     private var loadFinished = false
+    private var adminIds = Set<String>()
+    private var adminRequestInFlight = false
+    private var canManageAdmins = false
+    private let adminAccount = saveIdentifier
     
     /**
      The array of participants in the group.
@@ -95,16 +100,29 @@ import UIKit
         self.navigation.clickClosure = { [weak self] in
             self?.navigationClick(type: $0, indexPath: $1)
         }
-        self.fetchParticipants()
+        if self.operation != .manageAdmins {
+            self.fetchParticipants()
+        }
         
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
         NotificationCenter.default.addObserver(self, selector: #selector(refreshList), name: Notification.Name(rawValue: cache_update_notification), object: nil)
+        if self.operation == .manageAdmins {
+            self.service.bindGroupEventsListener(listener: self)
+        }
     }
     
     open override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        if self.operation == .manageAdmins {
+            self.fetchParticipants()
+        }
         self.refreshList()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        self.service.unbindGroupEventsListener(listener: self)
     }
     
     @objc private func refreshList() {
@@ -129,6 +147,8 @@ import UIKit
             text = "group_mention_title".chat.localize
         case .transferOwner:
             text = "group_details_extend_button_transfer".chat.localize
+        case .manageAdmins:
+            text = "group_admin_settings_title".chat.localize
         }
         if self.participants.count > 0 {
             text += "(\(self.participants.count))"
@@ -215,6 +235,10 @@ import UIKit
     }
 
     @objc open func fetchParticipants() {
+        if self.operation == .manageAdmins {
+            self.loadAdminSettings()
+            return
+        }
         if self.participants.count < Appearance.chat.groupParticipantsLimitCount {
             self.service.fetchParticipants(groupId: self.chatGroup.groupId, cursor: self.cursor, pageSize: self.pageSize) { [weak self] result, error in
                 guard let `self` = self else { return }
@@ -298,6 +322,115 @@ import UIKit
             self.participantsList.reloadData()
         }
     }
+
+    private func loadAdminSettings() {
+        self.canManageAdmins = false
+        self.participantsList.reloadData()
+        let loading = UIActivityIndicatorView(style: .medium)
+        loading.startAnimating()
+        self.participantsList.backgroundView = loading
+        self.service.fetchGroupInfo(groupId: self.chatGroup.groupId) { [weak self] group, error in
+            DispatchQueue.main.async {
+                guard let self = self, self.adminAccount == saveIdentifier else { return }
+                self.participantsList.backgroundView = nil
+                guard error == nil, let group = group else {
+                    self.showToast(toast: error?.errorDescription ?? "group_admin_load_failed".chat.localize)
+                    return
+                }
+                self.chatGroup = group
+                self.adminIds = Set(group.adminList ?? [])
+                self.canManageAdmins = !group.isDisabled && group.owner == ChatUIKitContext.shared?.currentUserId
+                guard self.canManageAdmins else {
+                    self.participantsList.reloadData()
+                    self.showToast(toast: "group_admin_owner_only".chat.localize)
+                    return
+                }
+                // Admin IDs come from fresh group details, so existing admins are
+                // available even if a member page doesn't include them.
+                self.participants = self.adminIds.sorted().filter { $0 != group.owner }.map { self.adminProfile(userId: $0) }
+                self.fetchAdminMemberPage(cursor: "")
+            }
+        }
+    }
+
+    private func adminProfile(userId: String) -> ChatUserProfileProtocol {
+        let profile = ChatUserProfile()
+        profile.id = userId
+        let cached = ChatUIKitContext.shared?.userCache?[userId] ?? ChatUIKitContext.shared?.chatCache?[userId]
+        profile.nickname = cached?.nickname ?? ""
+        profile.avatarURL = cached?.avatarURL ?? ""
+        return profile
+    }
+
+    private func fetchAdminMemberPage(cursor: String) {
+        self.service.fetchParticipants(groupId: self.chatGroup.groupId, cursor: cursor, pageSize: self.pageSize) { [weak self] result, error in
+            DispatchQueue.main.async {
+                guard let self = self, self.adminAccount == saveIdentifier else { return }
+                if let error = error {
+                    self.showToast(toast: error.errorDescription ?? "group_admin_load_failed".chat.localize)
+                    return
+                }
+                var ids = Set(self.participants.map { $0.id })
+                for user in result?.list ?? [] {
+                    let userId = user as String
+                    if userId != self.chatGroup.owner, ids.insert(userId).inserted {
+                        self.participants.append(self.adminProfile(userId: userId))
+                    }
+                }
+                self.participantsList.reloadData()
+                self.setupTitle()
+                self.participantsList.layoutIfNeeded()
+                self.requestDisplayInfos()
+                let next = result?.cursor ?? ""
+                if !next.isEmpty, next != cursor {
+                    self.fetchAdminMemberPage(cursor: next)
+                }
+            }
+        }
+    }
+
+    private func changeAdmin(profile: ChatUserProfileProtocol) {
+        guard self.adminAccount == saveIdentifier, self.canManageAdmins,
+              !self.adminRequestInFlight, profile.id != self.chatGroup.owner else { return }
+        let removing = self.adminIds.contains(profile.id)
+        let name = profile.nickname.isEmpty ? profile.id : profile.nickname
+        let prompt = String(format: (removing ? "group_admin_remove_confirm" : "group_admin_add_confirm").chat.localize, name)
+        DialogManager.shared.showAlert(title: "", content: prompt, showCancel: true, showConfirm: true) { [weak self] _ in
+            guard let self = self, self.adminAccount == saveIdentifier, self.canManageAdmins,
+                  !self.adminRequestInFlight, self.adminIds.contains(profile.id) == removing else { return }
+            self.adminRequestInFlight = true
+            self.participantsList.reloadData()
+            let completion: (ChatGroup?, ChatError?) -> Void = { [weak self] group, error in
+                DispatchQueue.main.async {
+                    guard let self = self, self.adminAccount == saveIdentifier else { return }
+                    self.adminRequestInFlight = false
+                    if let error = error {
+                        self.showToast(toast: error.errorDescription ?? "group_admin_update_failed".chat.localize)
+                    } else {
+                        if removing { self.adminIds.remove(profile.id) }
+                        else { self.adminIds.insert(profile.id) }
+                        if let group = group { self.chatGroup = group }
+                    }
+                    self.participantsList.reloadData()
+                }
+            }
+            if removing {
+                self.service.removeAdmin(userId: profile.id, from: self.chatGroup.groupId, completion: completion)
+            } else {
+                self.service.addAdmin(userId: profile.id, to: self.chatGroup.groupId, completion: completion)
+            }
+        }
+    }
+}
+
+extension GroupParticipantsController: GroupServiceListener {
+    public func onGroupAdminUpdated(groupId: String, userId: String, added: Bool) {
+        guard self.operation == .manageAdmins, self.adminAccount == saveIdentifier,
+              groupId == self.chatGroup.groupId else { return }
+        if added { self.adminIds.insert(userId) }
+        else { self.adminIds.remove(userId) }
+        self.participantsList.reloadData()
+    }
 }
 
 
@@ -317,6 +450,19 @@ extension GroupParticipantsController: UITableViewDelegate,UITableViewDataSource
         }
         if let profile = self.participants[safe: indexPath.row] {
             cell?.refresh(profile: profile, keyword: "")
+            if self.operation == .manageAdmins {
+                let removing = self.adminIds.contains(profile.id)
+                let button = UIButton(type: .system)
+                button.frame = CGRect(x: 0, y: 0, width: 96, height: 44)
+                button.titleLabel?.font = UIFont.theme.labelMedium
+                button.setTitle((removing ? "group_admin_remove_action" : "group_admin_settings_entry").chat.localize, for: .normal)
+                button.setTitleColor(removing ? UIColor.theme.errorColor5 : (Theme.style == .dark ? UIColor.theme.primaryDarkColor : UIColor.theme.primaryLightColor), for: .normal)
+                button.isEnabled = self.canManageAdmins && !self.adminRequestInFlight
+                button.addAction(UIAction { [weak self] _ in self?.changeAdmin(profile: profile) }, for: .touchUpInside)
+                cell?.accessoryView = button
+            } else {
+                cell?.accessoryView = nil
+            }
         }
         cell?.selectionStyle = .none
         return cell ?? GroupParticipantCell()
@@ -367,10 +513,10 @@ extension GroupParticipantsController: UITableViewDelegate,UITableViewDataSource
     
     private func fillCache(profiles: [ChatUserProfileProtocol]) {
         for profile in profiles {
-            if let profile = ChatUIKitContext.shared?.userCache?[profile.id] {
-                profile.nickname = profile.nickname
-                profile.remark = profile.remark
-                profile.avatarURL = profile.avatarURL
+            if let cached = ChatUIKitContext.shared?.userCache?[profile.id] {
+                cached.nickname = profile.nickname
+                cached.remark = profile.remark
+                cached.avatarURL = profile.avatarURL
             } else {
                 ChatUIKitContext.shared?.userCache?[profile.id] = profile
             }
@@ -412,6 +558,8 @@ extension GroupParticipantsController: UITableViewDelegate,UITableViewDataSource
             case .mention,.transferOwner:
                 self.mentionClosure?(profile)
                 self.pop()
+            case .manageAdmins:
+                self.changeAdmin(profile: profile)
             }
             
         }

@@ -16,7 +16,7 @@ import UIKit
     
     public var chatGroup = ChatGroup()
     
-    public private(set) var service: GroupService = GroupServiceImplement()
+    public private(set) var service: GroupService = ChatUIKitClient.shared.groupService
     
     public private(set) var conversationService = ConversationServiceImplement()
     
@@ -85,12 +85,40 @@ import UIKit
      - Returns: An array of arrays of DetailInfo objects representing the filled data.
      */
     @objc open func fillDatas() -> [[DetailInfo]] {
-        self.jsons.map {
+        var sections = self.jsons.map {
             $0.map {
                 let info = DetailInfo()
                 info.setValuesForKeys($0)
+                switch info.title {
+                case "group_details_button_members".chat.localize:
+                    info.detail = "\(self.chatGroup.occupantsCount)"
+                case "group_details_button_name".chat.localize:
+                    info.detail = self.chatGroup.groupName ?? ""
+                case "group_details_button_description".chat.localize:
+                    info.detail = self.chatGroup.description ?? ""
+                case "contact_details_switch_donotdisturb".chat.localize:
+                    info.switchValue = self.isConversationMuted
+                default: break
+                }
                 return info
             }
+        }
+        guard let owner = self.chatGroup.owner, !owner.isEmpty,
+              owner == ChatUIKitContext.shared?.currentUserId else { return Array(sections.prefix(1)) }
+        if !self.chatGroup.isDisabled {
+            let admins = DetailInfo()
+            admins.title = "group_admin_settings_entry".chat.localize
+            admins.detail = "\(self.chatGroup.adminList?.count ?? 0)"
+            sections[1].append(admins)
+        }
+        return sections
+    }
+
+    @objc open func refreshManagementItems() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.datas = self.fillDatas()
+            self.menuList.reloadData()
         }
     }
     
@@ -138,6 +166,7 @@ import UIKit
             } else {
                 self.chatGroup = ChatGroup(id: groupId)
             }
+            self.refreshManagementItems()
             let showName = self.chatGroup.groupName.isEmpty ? groupId:self.chatGroup.groupName
             self.header.nickName.text = showName
             self.header.userState = .offline
@@ -187,6 +216,7 @@ import UIKit
     
     open override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        self.fetchGroupInfo(groupId: self.chatGroup.groupId)
         self.datas.first?.first?.detail = "\(self.chatGroup.occupantsCount)"
         self.menuList.reloadData()
     }
@@ -197,9 +227,7 @@ import UIKit
         self.view.addSubViews([self.navigation,self.menuList])
         // Do any additional setup after loading the view.
         //click of the navigation
-        if self.chatGroup.owner != ChatUIKitContext.shared?.currentUserId ?? "" {
-            self.datas = self.datas.dropLast()
-        }
+        self.refreshManagementItems()
         self.navigation.clickClosure = { [weak self] in
             self?.navigationClick(type: $0, indexPath: $1)
         }
@@ -523,6 +551,7 @@ extension GroupInfoViewController: UITableViewDelegate,UITableViewDataSource {
             case "group_details_button_name".chat.localize: self.edit(type: .name, detail: info.detail)
             case "group_details_button_alias".chat.localize: self.edit(type: .alias, detail: info.detail)
             case "group_details_button_members".chat.localize: self.viewParticipants()
+            case "group_admin_settings_entry".chat.localize: self.viewAdministrators()
             case "group_details_button_description".chat.localize: self.edit(type: .description, detail: info.detail)
             case "contact_details_button_clearchathistory".chat.localize: self.cleanHistoryMessages()
             default:
@@ -534,6 +563,14 @@ extension GroupInfoViewController: UITableViewDelegate,UITableViewDataSource {
     /// Opens the view to display the participants of the chat group.
     @objc open func viewParticipants() {
         let vc = ComponentsRegister.shared.GroupParticipantController.init(groupId: self.chatGroup.groupId)
+        vc.modalPresentationStyle = .fullScreen
+        ControllerStack.toDestination(vc: vc)
+    }
+
+    @objc open func viewAdministrators() {
+        guard !self.chatGroup.isDisabled,
+              self.chatGroup.owner == ChatUIKitContext.shared?.currentUserId else { return }
+        let vc = ComponentsRegister.shared.GroupParticipantController.init(groupId: self.chatGroup.groupId, operation: .manageAdmins)
         vc.modalPresentationStyle = .fullScreen
         ControllerStack.toDestination(vc: vc)
     }

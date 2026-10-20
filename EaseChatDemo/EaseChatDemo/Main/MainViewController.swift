@@ -12,6 +12,13 @@ import SwiftFFDBHotFix
 import AgoraRtcKit
 
 final class MainViewController: UITabBarController {
+
+    private var usesLiquidTabBar: Bool {
+        if #available(iOS 26.0, *) {
+            return !(Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool ?? false)
+        }
+        return false
+    }
     
     private lazy var chats: ConversationListController = {
         let vc = EaseChatUIKit.ComponentsRegister.shared.ConversationsController.init()
@@ -36,14 +43,16 @@ final class MainViewController: UITabBarController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         
-        if UIApplication.shared.chat.keyWindow != nil {
+        if !self.usesLiquidTabBar, UIApplication.shared.chat.keyWindow != nil {
             tabBar.frame = CGRect(x: 0, y: EaseChatUIKit.ScreenHeight-EaseChatUIKit.BottomBarHeight-49, width: EaseChatUIKit.ScreenWidth, height: EaseChatUIKit.BottomBarHeight+49)
         }
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        self.tabBar.insetsLayoutMarginsFromSafeArea = false
+        if !self.usesLiquidTabBar {
+            self.tabBar.insetsLayoutMarginsFromSafeArea = false
+        }
         self.tabBarController?.additionalSafeAreaInsets = .zero
         self.callKitSet()
         self.setupDataProvider()
@@ -104,12 +113,6 @@ final class MainViewController: UITabBarController {
         nav3.interactivePopGestureRecognizer?.delegate = self
         self.viewControllers = [nav1, nav2,nav3]
         self.view.backgroundColor = UIColor.theme.neutralColor98
-        self.tabBar.backgroundColor = UIColor.theme.barrageDarkColor100
-        self.tabBar.barTintColor = UIColor.theme.barrageDarkColor100
-        self.tabBar.isTranslucent = false
-        self.tabBar.barStyle = .default
-        self.tabBar.backgroundImage = UIImage()
-        self.tabBar.shadowImage = UIImage()
     }
 
 }
@@ -129,37 +132,65 @@ extension MainViewController: UIGestureRecognizerDelegate {
 extension MainViewController: EaseChatUIKit.ThemeSwitchProtocol {
     
     func switchTheme(style: EaseChatUIKit.ThemeStyle) {
-        self.tabBar.barTintColor = style == .dark ? UIColor.theme.barrageLightColor100:UIColor.theme.barrageDarkColor100
-        self.view.backgroundColor = style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
-        self.tabBar.backgroundColor = style == .dark ? UIColor.theme.barrageLightColor100:UIColor.theme.barrageDarkColor100
-        let appearance = self.tabBar.standardAppearance
-        appearance.backgroundEffect = nil
-        appearance.backgroundColor = self.tabBar.backgroundColor
+        let backgroundColor = style == .dark ? UIColor.theme.barrageLightColor100 : UIColor.theme.barrageDarkColor100
+        let normalIconColor = UIColor.theme.neutralColor7
+        let normalTitleColor = style == .dark ? UIColor.theme.neutralColor4 : UIColor.theme.neutralColor7
+        let selectedColor = UIColor.theme.primaryLightColor
+        let normalTitleAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: normalTitleColor, .font: UIFont.theme.labelExtraSmall]
+        let selectedTitleAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: selectedColor, .font: UIFont.theme.labelExtraSmall]
+        self.view.backgroundColor = style == .dark ? UIColor.theme.neutralColor1 : UIColor.theme.neutralColor98
+        self.tabBar.tintColor = selectedColor
+        self.tabBar.unselectedItemTintColor = normalIconColor
+
+        let appearance = UITabBarAppearance()
+        if self.usesLiquidTabBar {
+            // Let UIKit draw the floating glass surface without an opaque backing view.
+            self.tabBar.isTranslucent = true
+            self.tabBar.backgroundColor = .clear
+            self.tabBar.barTintColor = nil
+            self.tabBar.backgroundImage = nil
+            self.tabBar.shadowImage = nil
+            appearance.configureWithDefaultBackground()
+        } else {
+            self.tabBar.isTranslucent = false
+            self.tabBar.barStyle = .default
+            self.tabBar.backgroundColor = backgroundColor
+            self.tabBar.barTintColor = backgroundColor
+            self.tabBar.backgroundImage = UIImage()
+            self.tabBar.shadowImage = UIImage()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = backgroundColor
+            appearance.shadowColor = .clear
+        }
+        for itemAppearance in [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance] {
+            itemAppearance.normal.iconColor = normalIconColor
+            itemAppearance.normal.titleTextAttributes = normalTitleAttributes
+            itemAppearance.normal.badgeBackgroundColor = UIColor.theme.errorColor6
+            itemAppearance.normal.badgeTextAttributes = [.foregroundColor: UIColor.theme.neutralColor98, .font: UIFont.theme.bodySmall]
+            itemAppearance.selected.iconColor = selectedColor
+            itemAppearance.selected.titleTextAttributes = selectedTitleAttributes
+            itemAppearance.selected.badgeBackgroundColor = UIColor.theme.errorColor6
+            itemAppearance.selected.badgeTextAttributes = itemAppearance.normal.badgeTextAttributes
+        }
         self.tabBar.standardAppearance = appearance
         self.tabBar.scrollEdgeAppearance = appearance
-        
-        var chatsImage = UIImage(named: "tabbar_chats")
-        chatsImage = chatsImage?.withTintColor(style == .dark ? UIColor.theme.neutralColor4:UIColor.theme.neutralColor5, renderingMode: .alwaysOriginal)
-        let selectedChatsImage = chatsImage?.withTintColor(style == .dark ? UIColor.theme.primaryDarkColor:UIColor.theme.primaryLightColor, renderingMode: .alwaysOriginal)
-        self.chats.tabBarItem = UITabBarItem(title: "Chats".localized(), image: chatsImage, selectedImage: selectedChatsImage)
-        
-        self.chats.tabBarItem.setTitleTextAttributes([.foregroundColor:UIColor(0x999999)], for: .normal)
-        self.chats.tabBarItem.setTitleTextAttributes([.foregroundColor:UIColor(0x007AFF)], for: .selected)
-        
-        var contactImage = UIImage(named: "tabbar_contacts")
-        contactImage = contactImage?.withTintColor(style == .dark ? UIColor.theme.neutralColor4:UIColor.theme.neutralColor5, renderingMode: .alwaysOriginal)
-        let selectedContactImage = contactImage?.withTintColor(style == .dark ? UIColor.theme.primaryDarkColor:UIColor.theme.primaryLightColor, renderingMode: .alwaysOriginal)
-        self.contacts.tabBarItem = UITabBarItem(title: "Contacts".localized(), image: contactImage, selectedImage: selectedContactImage)
-        self.contacts.tabBarItem.setTitleTextAttributes([.foregroundColor:UIColor(0x999999)], for: .normal)
-        self.contacts.tabBarItem.setTitleTextAttributes([.foregroundColor:UIColor(0x007AFF)], for: .selected)
-        
-        var meImage = UIImage(named: "tabbar_mine")
-        meImage = meImage?.withTintColor(style == .dark ? UIColor.theme.neutralColor4:UIColor.theme.neutralColor5, renderingMode: .alwaysOriginal)
-        let selectedMeImage = meImage?.withTintColor(style == .dark ? UIColor.theme.primaryDarkColor:UIColor.theme.primaryLightColor, renderingMode: .alwaysOriginal)
-        self.me.tabBarItem = UITabBarItem(title: "Me".localized(), image: meImage, selectedImage: selectedMeImage)
-        
-        self.me.tabBarItem.setTitleTextAttributes([.foregroundColor:UIColor(0x999999)], for: .normal)
-        self.me.tabBarItem.setTitleTextAttributes([.foregroundColor:UIColor(0x007AFF)], for: .selected)
+
+        let tabs: [(UIViewController, String, String)] = [
+            (self.chats, "Chats".localized(), "tabbar_chats"),
+            (self.contacts, "Contacts".localized(), "tabbar_contacts"),
+            (self.me, "Me".localized(), "tabbar_mine")
+        ]
+        for (controller, title, imageName) in tabs {
+            // Update the existing item so theme changes preserve badges and item identity.
+            let item = controller.tabBarItem
+            let image = UIImage(named: imageName)
+            item?.title = title
+            item?.image = image?.withTintColor(normalIconColor, renderingMode: .alwaysOriginal)
+            item?.selectedImage = image?.withTintColor(selectedColor, renderingMode: .alwaysOriginal)
+            item?.setTitleTextAttributes(normalTitleAttributes, for: .normal)
+            item?.setTitleTextAttributes(selectedTitleAttributes, for: .selected)
+            controller.navigationController?.tabBarItem = item
+        }
         self.tabBar.layoutIfNeeded()
         
     }
