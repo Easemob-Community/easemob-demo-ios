@@ -142,3 +142,23 @@
 "Information Shared with Third Partes" = "Information Shared with Third Partes";
 "Personal Information Collected" = "Personal Information Collected";
 "ICP" = "Filing Number";
+
+// Me page
+"me_contact_business" = "Contact sales";
+"me_visit_easemob" = "Visit Easemob";
+"me_sdk_version" = "SDK version";
+"me_uikit_version" = "UIKit version";
+"me_privacy_and_agreements" = "Privacy and agreements";
+"me_privacy_title" = "Privacy agreements";
+"me_terms_of_service" = "Terms of service";
+"me_third_party_sharing" = "Third-party information sharing";
+"me_message_notifications" = "Message notifications";
+"me_logout" = "Log out";
+"me_delete_account" = "Delete account";
+"me_signature_placeholder" = "My signature";
+"me_change_avatar" = "Change avatar";
+"me_copy_id" = "Copy ID";
+"me_avatar_updating" = "Updating avatar…";
+"me_avatar_updated" = "Avatar updated";
+"me_avatar_update_failed" = "Could not update avatar. Please try again.";
+"me_avatar_debug_unsupported" = "Avatar uploads are unavailable in debug mode.";

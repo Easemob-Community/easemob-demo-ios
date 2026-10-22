@@ -2,240 +2,199 @@
 //  MeViewController.swift
 //  EaseChatDemo
 //
-//  Created by 朱继超 on 2024/3/5.
-//
 
 import UIKit
 import EaseChatUIKit
 import SwiftFFDBHotFix
 
 final class MeViewController: UIViewController {
-    
-    private var menusData: [[String:Any]] {
-        [
-            ["sectionTitle":"Setting".localized(),"sectionData":[["title":"online_status".localized(),"icon":"online_status","detail":PresenceManager.shared.currentUserStatus],["title":"Personal Info".localized(),"icon":"userinfo"],["title":"General".localized(),"icon":"general"],["title":"Notification".localized(),"icon":"notification"],["title":"Privacy".localized(),"icon":"privacy"],["title":"Privacy Policy".localized(),"icon":"privacy_police"],["title":"Information Shared with Third Partes".localized(),"icon":"third_libs"],["title":"Personal Information Collected".localized(),"icon":"collection"],["title":"Service".localized(),"icon":"service"],["title":"ICP".localized(),"detail":"京ICP备2023000793号-10A","icon":"icp"],["title":"About".localized(),"icon":"about"]]],
-            ["sectionTitle":"Account".localized(),"sectionData":[["title":"Logout".localized()],["title":"Deregister".localized()]]]
-        ]
+    private enum Action { case business, website, sdk, uikit, registration, policies, status, profile, general, notification, blocked }
+    private struct Row {
+        let title: String
+        let detail: String
+        let action: Action
+        init(_ title: String, _ detail: String = "", _ action: Action) { self.title = title; self.detail = detail; self.action = action }
+        var navigable: Bool { [.policies, .status, .profile, .general, .notification, .blocked].contains(self.action) }
+        var link: Bool { self.action == .business || self.action == .website }
+        var selectable: Bool { ![.sdk, .uikit, .registration].contains(self.action) }
     }
-    
-    private lazy var header: DetailInfoHeader = {
-        DetailInfoHeader(frame: CGRect(x: 0, y: 0, width: ScreenWidth, height: 204), showMenu: false, placeHolder: Appearance.conversation.singlePlaceHolder)
+    private var menusData: [[Row]] {
+        var settings = [Row("online_status", PresenceManager.shared.currentUserStatus, .status), Row("Personal Info", "", .profile), Row("General", "", .general), Row("me_message_notifications", "", .notification)]
+        if Appearance.contact.enableBlock { settings.append(Row("block_list", "", .blocked)) }
+        return [[Row("me_contact_business", "400-622-1776", .business), Row("me_visit_easemob", "www.easemob.com", .website), Row("me_sdk_version", "Easemob SDK v" + ChatClient.shared().version, .sdk), Row("me_uikit_version", "Easemob UIKit v" + ChatUIKit_VERSION, .uikit), Row("ICP", "京ICP备2023000793号-10A", .registration), Row("me_privacy_and_agreements", "", .policies)], settings]
+    }
+    private var currentUserId: String {
+        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+        return userId.isEmpty ? (ChatUIKitContext.shared?.currentUser?.id ?? "") : userId
+    }
+    private var profileGeneration = 0
+    private var signature = ""
+    private var limited = false
+    private var customStatus = ""
+    @UserDefault("EaseChatDemoUserPhone", defaultValue: "") private var phone
+    private lazy var avatarEditor = UserAvatarEditor(presenter: self)
+    private lazy var header = MeProfileHeader(frame: CGRect(x: 0, y: 0, width: self.view.bounds.width, height: 142))
+    private let logoutButton = UIButton(type: .system)
+    private let deregisterButton = UIButton(type: .system)
+    private lazy var accountFooter: UIView = {
+        let footer = UIView(frame: CGRect(x: 0, y: 0, width: self.view.bounds.width, height: 172))
+        self.logoutButton.setTitle("me_logout".localized(), for: .normal)
+        self.deregisterButton.setTitle("me_delete_account".localized(), for: .normal)
+        for button in [self.logoutButton, self.deregisterButton] {
+            button.titleLabel?.font = UIFont.theme.labelLarge
+            button.layer.cornerRadius = 25
+            footer.addSubview(button)
+        }
+        self.logoutButton.addAction(UIAction { [weak self] _ in self?.logout() }, for: .touchUpInside)
+        self.deregisterButton.addAction(UIAction { [weak self] _ in self?.deregister() }, for: .touchUpInside)
+        return footer
     }()
-    
     private lazy var menuList: UITableView = {
-        UITableView(frame: CGRect(x: 0, y: NavigationHeight, width: ScreenWidth, height: ScreenHeight-NavigationHeight-BottomBarHeight-(self.tabBarController?.tabBar.frame.height ?? 49)), style: .plain).backgroundColor(.clear).separatorStyle(.none).tableFooterView(UIView()).tableHeaderView(self.header).dataSource(self).delegate(self).rowHeight(54)
+        let list = UITableView(frame: .zero, style: .plain)
+        list.backgroundColor = .clear
+        list.separatorStyle = .none
+        list.rowHeight = 54
+        list.sectionHeaderTopPadding = 0
+        list.contentInsetAdjustmentBehavior = .never
+        list.tableHeaderView = self.header
+        list.tableFooterView = self.accountFooter
+        list.delegate = self
+        list.dataSource = self
+        list.register(MeMenuCell.self, forCellReuseIdentifier: "MeMenuCell")
+        return list
     }()
-    
     private lazy var limitCount: UILabel = {
         UILabel(frame: CGRect(x: 0, y: 13, width: 50, height: 22)).font(UIFont.theme.bodyLarge).text("0/20")
     }()
-    
-    private var limited = false
-    
-    private var customStatus = ""
-    
-    @UserDefault("EaseChatDemoUserPhone", defaultValue: "") private var phone
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
         self.view.addSubview(self.menuList)
-        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
-        var nickName = ChatUIKitContext.shared?.currentUser?.nickname ?? ""
-        if nickName.isEmpty {
-            nickName = userId
+        self.header.avatarTapped = { [weak self] in self?.avatarEditor.showActions() }
+        self.header.profileTapped = { [weak self] in self?.viewProfile() }
+        self.header.copyIdentifier = { [weak self] in
+            UIPasteboard.general.string = self?.currentUserId ?? ""
+            self?.showToast(toast: "Copied".chat.localize)
         }
-        self.fetchUserInfo(userId: userId)
-        self.header.nickName.text = nickName
-        self.header.detailText = userId
-        self.header.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""
+        self.refreshProfile()
+        PresenceManager.shared.addHandler(handler: self)
+        self.showUserStatus()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshProfile), name: NSNotification.Name(userAvatarUpdated), object: nil)
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
-        self.listenToUserStatus()
-        self.showUserStatus()
-        NotificationCenter.default.addObserver(self, selector: #selector(refreshProfile), name: NSNotification.Name(rawValue: userAvatarUpdated), object: nil)
     }
-    
-    private func fetchUserInfo(userId: String) {
-        ChatClient.shared().userInfoManager?.fetchUserInfo(byId: [userId], type: [0,1], completion: { [weak self] infoMap, error in
-            if let info = infoMap?[userId],error == nil {
-                DispatchQueue.main.async {
-                    self?.header.nickName.text = info.nickname
-                    self?.header.detailText = userId
-                    self?.header.avatarURL = info.avatarUrl
-                }
-                if let profiles = EaseChatProfile.select(where: "id = ?",values: [userId]) as? [EaseChatProfile],let profile = profiles.first(where: { $0.id == userId }) {
-                    profile.nickname = info.nickname ?? ""
-                    profile.avatarURL = info.avatarUrl ?? ""
-                    profile.updateFFDB()
-                    ChatUIKitContext.shared?.currentUser = profile
-                    ChatUIKitContext.shared?.userCache?[profile.id] = profile
-                } else {
-                    let profile = EaseChatProfile()
-                    profile.id = userId
-                    profile.nickname = info.nickname ?? ""
-                    profile.avatarURL = info.avatarUrl ?? ""
-                    profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                    profile.insert()
-                    ChatUIKitContext.shared?.currentUser = profile
-                    ChatUIKitContext.shared?.userCache?[profile.id] = profile
-                }
-            } else {
-                DispatchQueue.main.async {
-                    self?.showToast(toast: "fetchUserInfo error:\(error?.errorDescription ?? "")")
-                }
-            }
-        })
-    }
-    
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        self.navigationController?.navigationBar.isHidden = true
-        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
-        var nickName = ChatUIKitContext.shared?.currentUser?.nickname ?? ""
-        if nickName.isEmpty {
-            nickName = userId
-        }
-        if self.header.nickName.text != nickName,!nickName.isEmpty {
-            self.header.nickName.text = nickName
-        }
-        if let url = ChatUIKitContext.shared?.currentUser?.avatarURL,!url.isEmpty  {
-            self.header.avatarURL = url
-        }
+        self.navigationController?.setNavigationBarHidden(true, animated: false)
+        self.refreshProfile()
+        self.fetchUserInfo()
         self.menuList.reloadData()
     }
-    
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let top = self.view.safeAreaInsets.top
+        let tabTop = self.tabBarController?.tabBar.frame.minY ?? (self.view.bounds.height - self.view.safeAreaInsets.bottom)
+        self.menuList.frame = CGRect(x: 0, y: top, width: self.view.bounds.width, height: max(0, min(self.view.bounds.height, tabTop) - top))
+        self.header.frame.size.width = self.menuList.bounds.width
+        self.accountFooter.frame.size.width = self.menuList.bounds.width
+        self.logoutButton.frame = CGRect(x: 16, y: 48, width: self.menuList.bounds.width - 32, height: 50)
+        self.deregisterButton.frame = CGRect(x: 16, y: 110, width: self.menuList.bounds.width - 32, height: 50)
+    }
+
     @objc private func refreshProfile() {
-        self.header.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL
+        self.profileGeneration += 1
+        let userId = self.currentUserId
+        let user = ChatUIKitContext.shared?.currentUser
+        self.header.configure(nickname: (user?.nickname.isEmpty == false ? user?.nickname : userId) ?? userId, signature: self.signature, userId: userId, avatarURL: user?.avatarURL ?? "")
     }
-    
-    private func listenToUserStatus() {
-        PresenceManager.shared.addHandler(handler: self)
-    }
-    
-    private func showUserStatus() {
-        if let presence = PresenceManager.shared.presences[ChatUIKitContext.shared?.currentUserId ?? ""] {
-            switch PresenceManager.status(with: presence) {
-            case .online: self.header.userState = .online
-            case .offline: self.header.userState = .offline
-            case .busy:
-                self.header.status.image = nil
-                self.header.status.backgroundColor = Theme.style == .dark ? UIColor.theme.errorColor5:UIColor.theme.errorColor6            
-            case .away:
-                self.header.status.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
-                self.header.status.image(PresenceManager.presenceImagesMap[.away] as? UIImage)
-            case .doNotDisturb:
-                self.header.status.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
-                self.header.status.image(PresenceManager.presenceImagesMap[.doNotDisturb] as? UIImage)
-            case .custom:
-                self.header.status.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
-                self.header.status.image(PresenceManager.presenceImagesMap[.custom] as? UIImage)
+
+    private func fetchUserInfo() {
+        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+        guard !userId.isEmpty else { return }
+        let account = saveIdentifier
+        let generation = self.profileGeneration
+        ChatClient.shared().userInfoManager?.fetchUserInfo(byId: [userId], type: [0, 1, 5]) { [weak self] infoMap, error in
+            DispatchQueue.main.async {
+                guard let self = self, account == saveIdentifier, generation == self.profileGeneration else { return }
+                guard let info = infoMap?[userId], error == nil else { return }
+                let existing = (EaseChatProfile.select(where: "id = ?", values: [userId]) as? [EaseChatProfile])?.first
+                let profile = existing ?? EaseChatProfile()
+                profile.id = userId
+                profile.nickname = info.nickname ?? ""
+                profile.avatarURL = info.avatarUrl ?? ""
+                profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
+                if existing == nil { profile.insert() } else { profile.updateFFDB() }
+                ChatUIKitContext.shared?.currentUser = profile
+                ChatUIKitContext.shared?.userCache?[userId] = profile
+                self.signature = info.sign ?? ""
+                self.refreshProfile()
             }
+        }
+    }
+
+    private func showUserStatus() {
+        let account = saveIdentifier
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, account == saveIdentifier else { return }
+            let presence = PresenceManager.shared.presences[ChatUIKitContext.shared?.currentUserId ?? ""]
+            let state = presence.map { PresenceManager.status(with: $0) } ?? .online
+            self.header.showStatus(state)
             self.menuList.reloadData()
         }
-        
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        PresenceManager.shared.removeHandler(handler: self)
+    }
 }
 
-extension MeViewController: UITableViewDelegate,UITableViewDataSource {
-    
-    func numberOfSections(in tableView: UITableView) -> Int {
-        self.menusData.count
-    }
-    
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        (self.menusData[safe:section]?["sectionData"] as? Array<Dictionary<String,Any>>)?.count ?? 0
-    }
-    
-    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-        26
-    }
-    
+extension MeViewController: UITableViewDelegate, UITableViewDataSource {
+    func numberOfSections(in tableView: UITableView) -> Int { self.menusData.count }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { self.menusData[section].count }
+    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { 44 }
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
-        UIView {
-            UIView(frame: CGRect(x: 0, y: 0, width: ScreenWidth, height: 26)).backgroundColor(Theme.style == .light ? UIColor.theme.neutralColor95:UIColor.theme.neutralColor2)
-            UILabel(frame: CGRect(x: 16, y: 4, width: ScreenWidth-32, height: 18)).font(UIFont.theme.labelMedium).textColor(Theme.style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor6).text(self.menusData[section]["sectionTitle"] as? String ?? "").backgroundColor(.clear)
-        }
+        let header = UIView()
+        header.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor2 : UIColor.theme.neutralColor95
+        let label = UILabel(frame: CGRect(x: 16, y: 20, width: tableView.bounds.width - 32, height: 20))
+        label.font = UIFont.theme.bodyMedium
+        label.textColor = Theme.style == .dark ? UIColor.theme.neutralColor6 : UIColor.theme.neutralColor5
+        label.text = (section == 0 ? "About" : "Setting").localized()
+        header.addSubview(label)
+        return header
     }
-    
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        var cell = tableView.dequeueReusableCell(withIdentifier: "MeMenuCell") as? MeMenuCell
-        if cell == nil {
-            cell = MeMenuCell(style: .default, reuseIdentifier: "MeMenuCell")
-        }
-        
-        if let rowDatas = self.menusData[safe:indexPath.section]?["sectionData"] as? Array<Dictionary<String,String>> {
-            let title = rowDatas[safe:indexPath.row]?["title"] as? String
-            let detail = rowDatas[safe:indexPath.row]?["detail"] as? String
-            let imageName = rowDatas[safe:indexPath.row]?["icon"] ?? ""
-            cell?.icon.image = UIImage(named: imageName)
-            cell?.content.text = title
-            cell?.detail.text = detail
-            if let rowTitle = title,(rowTitle == "Logout".localized() || rowTitle == "Deregister".localized()) {
-                cell?.refreshViews(hasIcon: false)
-                if rowTitle == "Deregister".localized() {
-                    cell?.content.textColor(Theme.style == .dark ? UIColor.theme.neutralColor5:UIColor.theme.neutralColor6)
-                } else {
-                    cell?.content.textColor(Theme.style == .dark ? UIColor.theme.primaryDarkColor:UIColor.theme.primaryLightColor)
-                }
-                
-            } else {
-                cell?.refreshViews(hasIcon: true)
-                cell?.indicator.isHidden = title == "ICP".localized()
-            }
-        }
-        
-        return cell ?? MeMenuCell()
+        let cell = tableView.dequeueReusableCell(withIdentifier: "MeMenuCell", for: indexPath) as! MeMenuCell
+        let row = self.menusData[indexPath.section][indexPath.row]
+        cell.configure(title: row.title.localized(), detail: row.detail, navigable: row.navigable, link: row.link, selectable: row.selectable)
+        return cell
     }
-    
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        if let rowDatas = self.menusData[safe:indexPath.section]?["sectionData"] as? Array<Dictionary<String,String>>,let title = rowDatas[safe:indexPath.row]?["title"] as? String {
-            switch title {
-            case "online_status".localized(): self.showOnlineStatusDialog()
-            case "Personal Info".localized(): self.viewProfile()
-            case "General".localized(): self.viewGeneral()
-            case "Notification".localized(): self.viewNotification()
-            case "Privacy Policy".localized(): self.privacyPolice()
-            case "Information Shared with Third Partes".localized(): self.thirdLibsInfo()
-            case "Personal Information Collected".localized(): self.collectedPersonInfo()
-            case "Service".localized(): self.viewService()
-            case "About".localized(): self.viewAbout()
-            case "Logout".localized(): self.logout()
-            case "Privacy".localized(): self.privacySetting()
-            case "Deregister".localized(): self.deregister()
-            default:
-                break
-            }
+        switch self.menusData[indexPath.section][indexPath.row].action {
+        case .business: self.openURL("tel:4006221776")
+        case .website: self.openURL("https://www.easemob.com")
+        case .policies:
+            let controller = PrivacyPolicyViewController()
+            controller.hidesBottomBarWhenPushed = true
+            self.navigationController?.pushViewController(controller, animated: true)
+        case .status: self.showOnlineStatusDialog()
+        case .profile: self.viewProfile()
+        case .general: self.viewGeneral()
+        case .notification: self.viewNotification()
+        case .blocked:
+            let controller = BlockContactsViewController()
+            controller.hidesBottomBarWhenPushed = true
+            self.navigationController?.pushViewController(controller, animated: true)
+        case .sdk, .uikit, .registration: break
         }
     }
-    
-    private func thirdLibsInfo() {
-        let vc = CommonWebViewController(urlString: "https://www.easemob.com/demo/third-party-sharing",navigationTitle: "Information Shared with Third Partes".localized())
-        vc.hidesBottomBarWhenPushed = true
-        self.navigationController?.pushViewController(vc, animated: true)
+    private func openURL(_ address: String) {
+        guard let url = URL(string: address), UIApplication.shared.canOpenURL(url) else { return }
+        UIApplication.shared.open(url, options: [:])
     }
-    
-    private func collectedPersonInfo() {
-        let currentUserId = ChatUIKitContext.shared?.currentUserId ?? ""
-        let vc = CommonWebViewController(urlString: Bundle.main.path(forResource: "person-info", ofType: "html") ?? "https://www.easemob.com/demo/personal-info-collection", navigationTitle: "Personal Information Collected".localized(),localInfo: ["username":ChatUIKitContext.shared?.currentUser?.nickname ?? currentUserId,"avatar":ChatUIKitContext.shared?.currentUser?.avatarURL ?? "","phone":self.phone,"device":UIDevice.current.model])
-        vc.hidesBottomBarWhenPushed = true
-        self.navigationController?.pushViewController(vc, animated: true)
-    }
-    
-    private func privacyPolice() {
-        let vc = CommonWebViewController(urlString: "https://www.easemob.com/demo/privacy-policy", navigationTitle: "Privacy Policy".localized())
-        vc.hidesBottomBarWhenPushed = true
-        self.navigationController?.pushViewController(vc, animated: true)
-    }
-    
-    private func viewService() {
-        let vc = CommonWebViewController(urlString: "https://www.easemob.com/demo/agreement", navigationTitle: "Service".localized())
-        vc.hidesBottomBarWhenPushed = true
-        self.navigationController?.pushViewController(vc, animated: true)
-    }
-    
     private func deregister() {
         DialogManager.shared.showAlert(title: "Deregister".localized(), content: "Deregister Alert".localized(), showCancel: true, showConfirm: true) { _ in
             EasemobBusinessRequest.shared.sendDELETERequest(api: .deregister(self.phone), params: [:]) { result, error in
@@ -277,18 +236,6 @@ extension MeViewController: UITableViewDelegate,UITableViewDataSource {
     
     private func viewNotification() {
         let vc = NotificationSettingViewController()
-        vc.hidesBottomBarWhenPushed = true
-        self.navigationController?.pushViewController(vc, animated: true)
-    }
-    
-    private func viewAbout() {
-        let vc = AboutEasemobController()
-        vc.hidesBottomBarWhenPushed = true
-        self.navigationController?.pushViewController(vc, animated: true)
-    }
-    
-    private func privacySetting() {
-        let vc = PrivacySettingViewController()
         vc.hidesBottomBarWhenPushed = true
         self.navigationController?.pushViewController(vc, animated: true)
     }
@@ -371,7 +318,6 @@ extension MeViewController: UITableViewDelegate,UITableViewDataSource {
         }
     }
 }
-
 extension MeViewController: UITextFieldDelegate,PresenceDidChangedListener {
     
     func presenceStatusChanged(users: [String]) {
@@ -396,12 +342,106 @@ extension MeViewController: UITextFieldDelegate,PresenceDidChangedListener {
 }
 
 
+
 extension MeViewController: ThemeSwitchProtocol {
-    
     func switchTheme(style: ThemeStyle) {
-        self.view.backgroundColor(style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98)
-        self.limitCount.textColor = style == .dark ? UIColor.theme.neutralColor4:UIColor.theme.neutralColor7
+        self.view.backgroundColor = style == .dark ? UIColor.theme.neutralColor1 : UIColor.theme.neutralColor98
+        self.limitCount.textColor = style == .dark ? UIColor.theme.neutralColor4 : UIColor.theme.neutralColor7
+        for button in [self.logoutButton, self.deregisterButton] { button.backgroundColor = style == .dark ? UIColor.theme.neutralColor2 : UIColor.theme.neutralColor95 }
+        self.logoutButton.setTitleColor(style == .dark ? UIColor.theme.neutralColor98 : UIColor.theme.neutralColor1, for: .normal)
+        self.deregisterButton.setTitleColor(style == .dark ? UIColor.theme.errorColor5 : UIColor.theme.errorColor6, for: .normal)
         self.menuList.reloadData()
+    }
+}
+
+final class MeProfileHeader: UIView, ThemeSwitchProtocol {
+    private let avatarPlaceholder = Appearance.avatarPlaceHolder
+        ?? UIImage(named: "default_avatar", in: .chatBundle, with: nil)
+        ?? UIImage(systemName: "person.crop.circle.fill")
+    private let avatar = ImageView(frame: .zero)
+    private let avatarButton = UIButton(type: .custom)
+    private let profileButton = UIButton(type: .custom)
+    private let nickname = UILabel()
+    private let signature = UILabel()
+    private let identifier = UIButton(type: .system)
+    private let status = UIImageView()
+    private var statusState = PresenceManager.State.online
+    var avatarTapped: (() -> Void)?
+    var profileTapped: (() -> Void)?
+    var copyIdentifier: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        self.avatar.contentMode = .scaleAspectFill
+        self.avatar.clipsToBounds = true
+        self.avatar.image = self.avatarPlaceholder
+        self.nickname.font = UIFont.theme.headlineMedium
+        self.signature.font = UIFont.theme.bodyMedium
+        self.identifier.contentHorizontalAlignment = .left
+        self.status.contentMode = .scaleAspectFit
+        self.status.layer.cornerRadius = 9
+        self.status.clipsToBounds = true
+        self.status.layer.borderWidth = 2
+        self.avatarButton.accessibilityLabel = "me_change_avatar".localized()
+        self.avatarButton.addAction(UIAction { [weak self] _ in self?.avatarTapped?() }, for: .touchUpInside)
+        self.profileButton.accessibilityLabel = "Personal Info".localized()
+        self.profileButton.addAction(UIAction { [weak self] _ in self?.profileTapped?() }, for: .touchUpInside)
+        self.identifier.accessibilityLabel = "me_copy_id".localized()
+        self.identifier.addAction(UIAction { [weak self] _ in self?.copyIdentifier?() }, for: .touchUpInside)
+        self.addSubViews([self.avatar, self.nickname, self.signature, self.avatarButton, self.profileButton, self.identifier, self.status])
+        Theme.registerSwitchThemeViews(view: self)
+        self.switchTheme(style: Theme.style)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(nickname: String, signature: String, userId: String, avatarURL: String) {
+        self.nickname.text = nickname
+        self.signature.text = signature.isEmpty ? "me_signature_placeholder".localized() : signature
+        self.avatar.image(with: avatarURL, placeHolder: self.avatarPlaceholder)
+        var configuration = UIButton.Configuration.plain()
+        configuration.title = "ID: " + userId
+        configuration.image = UIImage(systemName: "doc.on.doc.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12))
+        configuration.imagePlacement = .trailing
+        configuration.imagePadding = 4
+        configuration.contentInsets = .zero
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 12)
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes; attributes.font = UIFont.theme.bodySmall; return attributes
+        }
+        self.identifier.configuration = configuration
+        self.identifier.accessibilityValue = userId
+        self.switchTheme(style: Theme.style)
+    }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        self.avatar.frame = CGRect(x: 16, y: 36, width: 72, height: 72)
+        self.avatar.cornerRadius(Appearance.avatarRadius)
+        self.avatarButton.frame = self.avatar.frame
+        self.nickname.frame = CGRect(x: 100, y: 38, width: self.bounds.width - 116, height: 26)
+        self.signature.frame = CGRect(x: 100, y: 68, width: self.bounds.width - 116, height: 20)
+        self.profileButton.frame = CGRect(x: 96, y: 32, width: self.bounds.width - 112, height: 58)
+        self.identifier.frame = CGRect(x: 100, y: 88, width: self.bounds.width - 116, height: 24)
+        self.status.frame = CGRect(x: self.avatar.frame.maxX - 20, y: self.avatar.frame.maxY - 20, width: 20, height: 20)
+    }
+    func showStatus(_ state: PresenceManager.State) {
+        self.statusState = state
+        self.status.image = nil
+        switch state {
+        case .online: self.status.backgroundColor = UIColor.theme.secondaryColor5
+        case .offline: self.status.backgroundColor = UIColor.theme.neutralColor6
+        case .busy: self.status.backgroundColor = Theme.style == .dark ? UIColor.theme.errorColor5 : UIColor.theme.errorColor6
+        default:
+            self.status.backgroundColor = self.backgroundColor
+            self.status.image = PresenceManager.presenceImagesMap[state] as? UIImage
+        }
+    }
+    func switchTheme(style: ThemeStyle) {
+        self.backgroundColor = style == .dark ? UIColor.theme.neutralColor1 : UIColor.theme.neutralColor98
+        self.nickname.textColor = style == .dark ? UIColor.theme.neutralColor98 : UIColor.theme.neutralColor1
+        self.signature.textColor = style == .dark ? UIColor.theme.neutralColor6 : UIColor.theme.neutralColor4
+        self.identifier.configuration?.baseForegroundColor = style == .dark ? UIColor.theme.neutralColor5 : UIColor.theme.neutralColor7
+        self.status.layer.borderColor = self.backgroundColor?.cgColor
+        self.showStatus(self.statusState)
     }
 }
 

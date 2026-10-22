@@ -126,7 +126,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func setupEaseChatUIKitConfig() {
-
         //Set the theme of the chat demo UI.
         if self.theme == 0 {
             Appearance.avatarRadius = .extraSmall
@@ -140,8 +139,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             Appearance.chat.inputBarCorner = .large
             Appearance.alertStyle = .large
             Appearance.chat.bubbleStyle = .withMultiCorner
-            Appearance.chat.messageLongPressMenuStyle = .actionSheet
-            Appearance.chat.messageAttachmentMenuStyle = .actionSheet
+            Appearance.chat.messageLongPressMenuStyle = .withArrow
+            Appearance.chat.messageAttachmentMenuStyle = .followInput
         }
         Appearance.hiddenPresence = false
         Appearance.chat.enableTyping = true

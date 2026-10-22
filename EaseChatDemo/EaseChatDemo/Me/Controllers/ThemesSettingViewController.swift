@@ -10,7 +10,7 @@ import EaseChatUIKit
 
 final class ThemesSettingViewController: UIViewController {
     
-    @UserDefault("EaseChatDemoPreferencesTheme", defaultValue: 0) var theme: UInt
+    @UserDefault("EaseChatDemoPreferencesTheme", defaultValue: 1) var theme: UInt
 
     private var infos = ["Classic".localized(),"Smart".localized()]
     

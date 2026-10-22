@@ -15,7 +15,8 @@ import EaseCallUIKit
 let userAvatarUpdated = "userAvatarUpdated"
 
 final class PersonalInfoViewController: UIViewController {
-    @UserDefault("EaseChatDemoServerConfig", defaultValue: Dictionary<String,String>()) private var serverConfig
+    private lazy var avatarEditor = UserAvatarEditor(presenter: self)
+    private let account = saveIdentifier
     
     private lazy var infos: [Dictionary<String,String>] = {
         var userId = ChatUIKitContext.shared?.currentUserId ?? ""
@@ -37,6 +38,7 @@ final class PersonalInfoViewController: UIViewController {
         super.viewDidLoad()
         self.view.addSubViews([self.navigation,self.infoList])
         self.infoList.reloadData()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshAvatar), name: NSNotification.Name(userAvatarUpdated), object: nil)
         if let url = ChatUIKitContext.shared?.currentUser?.avatarURL,!url.isEmpty {
             self.navigation.avatarURL = url
         }
@@ -49,10 +51,16 @@ final class PersonalInfoViewController: UIViewController {
         EaseChatUIKit.Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: EaseChatUIKit.Theme.style)
     }
-    
+    deinit { NotificationCenter.default.removeObserver(self) }
+}
 
-    
-
+extension PersonalInfoViewController {
+    @objc private func refreshAvatar() {
+        guard self.account == saveIdentifier else { return }
+        self.infos[0]["detail"] = ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""
+        self.navigation.avatarURL = self.infos[0]["detail"]
+        self.infoList.reloadData()
+    }
 }
 
 extension PersonalInfoViewController: UITableViewDelegate,UITableViewDataSource {
@@ -84,13 +92,7 @@ extension PersonalInfoViewController: UITableViewDelegate,UITableViewDataSource 
         if let title = self.infos[safe:indexPath.row]?["title"] as? String {
             switch title {
             case "Avatar".localized():
-                if let debugMode = self.serverConfig["debug_mode"],debugMode == "1" {
-                    self.showToast(toast:"Unsupported upload image in debug mode")
-                    return
-                }
-                DialogManager.shared.showActions(actions: [ActionSheetItem(title: "input_extension_menu_photo".chat.localize, type: .normal,tag: "Photo",image: UIImage(named: "photo", in: .chatBundle, with: nil)), ActionSheetItem(title: "input_extension_menu_camera".chat.localize, type: .normal,tag: "Camera",image: UIImage(named: "camera_fill", in: .chatBundle, with: nil))]) { [weak self] item in
-                    self?.processAction(item: item)
-                }
+                self.avatarEditor.showActions()
             case "Nickname".localized(): self.editName()
             default:
                 break
@@ -140,124 +142,120 @@ extension PersonalInfoViewController: UITableViewDelegate,UITableViewDataSource 
         })
     }
     
-    @objc private func processAction(item: ActionSheetItemProtocol) {
-        switch item.tag {
-        case "Photo": self.selectPhoto()
-        case "Camera": self.openCamera()
-        default:
-            break
-        }
-    }
-    
-    /**
-     Opens the photo library and allows the user to select a photo.
-     
-     - Note: This method checks if the photo library is available on the device. If it is not available, an alert is displayed to the user.
-     */
-    @objc private func selectPhoto() {
-        guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary) else {
-            DialogManager.shared.showAlert(title: "permissions disable".chat.localize, content: "photo_disable".chat.localize, showCancel: false, showConfirm: true) { _ in
-                
-            }
-            return
-        }
-        let imagePickerController = UIImagePickerController()
-        imagePickerController.delegate = self
-        imagePickerController.sourceType = .photoLibrary
-        imagePickerController.allowsEditing = true
-        self.present(imagePickerController, animated: true, completion: nil)
-    }
-    
-    @objc private func openCamera() {
-        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            DialogManager.shared.showAlert(title: "permissions disable".chat.localize, content: "camera_disable".chat.localize, showCancel: false, showConfirm: true) { _ in
-                
-            }
-            return
-        }
-        let imagePicker = UIImagePickerController()
-        imagePicker.sourceType = .camera
-        imagePicker.delegate = self
-        imagePicker.allowsEditing = true
-        imagePicker.mediaTypes = [kUTTypeImage as String]
-        self.present(imagePicker, animated: true, completion: nil)
-    }
 }
 
-//MARK: - UIImagePickerControllerDelegate&UINavigationControllerDelegate
-extension PersonalInfoViewController:UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-    
-    public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        self.processImagePickerData(info: info)
-        picker.dismiss(animated: true, completion: nil)
-    }
-    
-    /**
-     Processes the data received from the image picker.
-     
-     - Parameters:
-         - info: A dictionary containing the information about the selected media.
-     */
-    @objc private func processImagePickerData(info: [UIImagePickerController.InfoKey : Any]) {
-        let mediaType = info[UIImagePickerController.InfoKey.mediaType] as? String
-        if mediaType == kUTTypeImage as String {
-            if let image = info[.editedImage] as? UIImage {
-                self.uploadImage(image: image.fixOrientation())
-            }
+/// Shared by the profile header and the personal-info avatar row.
+final class UserAvatarEditor: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    @UserDefault("EaseChatDemoServerConfig", defaultValue: Dictionary<String,String>()) private var serverConfig
+    private weak var presenter: UIViewController?
+    private let account = saveIdentifier
+    private var isUploading = false
+
+    init(presenter: UIViewController) { self.presenter = presenter; super.init() }
+
+    func showActions() {
+        guard self.account == saveIdentifier, let presenter = self.presenter else { return }
+        guard !self.isUploading else { presenter.showToast(toast: "me_avatar_updating".localized()); return }
+        guard self.serverConfig["debug_mode"] != "1" else {
+            presenter.showToast(toast: "me_avatar_debug_unsupported".localized())
+            return
+        }
+        guard presenter.presentedViewController == nil else { return }
+        let actions = [ActionSheetItem(title: "input_extension_menu_photo".chat.localize, type: .normal, tag: "Photo", image: UIImage(named: "photo", in: .chatBundle, with: nil)), ActionSheetItem(title: "input_extension_menu_camera".chat.localize, type: .normal, tag: "Camera", image: UIImage(named: "camera_fill", in: .chatBundle, with: nil))]
+        DialogManager.shared.showActions(actions: actions) { [weak self] item in
+            if item.tag == "Photo" { self?.showPicker(source: .photoLibrary) }
+            if item.tag == "Camera" { self?.requestCamera() }
         }
     }
-    
-    private func uploadImage(image: UIImage) {
+
+    private func requestCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: self.showPicker(source: .camera)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted { self?.showPicker(source: .camera) }
+                    else { self?.showUnavailable(source: .camera) }
+                }
+            }
+        default: self.showUnavailable(source: .camera)
+        }
+    }
+
+    private func showUnavailable(source: UIImagePickerController.SourceType) {
+        guard self.account == saveIdentifier else { return }
+        DialogManager.shared.showAlert(title: "permissions disable".chat.localize, content: (source == .camera ? "camera_disable" : "photo_disable").chat.localize, showCancel: false, showConfirm: true) { _ in }
+    }
+
+    private func showPicker(source: UIImagePickerController.SourceType) {
+        guard self.account == saveIdentifier, let presenter = self.presenter else { return }
+        guard UIImagePickerController.isSourceTypeAvailable(source) else { self.showUnavailable(source: source); return }
+        let picker = UIImagePickerController()
+        picker.sourceType = source
+        picker.mediaTypes = [kUTTypeImage as String]
+        picker.allowsEditing = true
+        picker.delegate = self
+        presenter.present(picker, animated: true)
+    }
+
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        let image = (info[.editedImage] ?? info[.originalImage]) as? UIImage
+        picker.dismiss(animated: true) { [weak self] in
+            guard let image = image else { return }
+            self?.upload(image: image.fixOrientation())
+        }
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) }
+
+    func upload(image: UIImage) {
+        guard self.account == saveIdentifier, !self.isUploading else { return }
+        self.isUploading = true
+        self.presenter?.showToast(toast: "me_avatar_updating".localized())
         EasemobRequest.shared.uploadImage(image: image) { [weak self] error, result in
             DispatchQueue.main.async {
-                if error == nil,let avatarURL = result?["avatarUrl"] as? String {
-                    let userId = ChatUIKitContext.shared?.currentUserId ?? ""
-                    ChatUIKitContext.shared?.currentUser?.avatarURL = avatarURL
-                    ChatUIKitContext.shared?.chatCache?[userId]?.avatarURL = avatarURL
-                    (ChatUIKitContext.shared?.userCache?[userId] as? ChatUserProfile)?.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                    (ChatUIKitContext.shared?.chatCache?[userId] as? ChatUserProfile)?.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                    CallKitManager.shared.currentUserInfo?.avatarURL = avatarURL
-                    
-                    CallKitManager.shared.usersCache[userId]?.avatarURL = avatarURL
-                    self?.infos[0]["detail"] = avatarURL
-                    if let user = ChatUIKitContext.shared?.currentUser {
-                        let profile = EaseChatProfile()
-                        profile.avatarURL = user.avatarURL
-                        profile.nickname = user.nickname
-                        profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                        profile.updateFFDB()
-                        CallKitManager.shared.currentUserInfo?.avatarURL = avatarURL
-                        ChatUIKitContext.shared?.chatCache?[userId] = profile
-                        ChatUIKitContext.shared?.userCache?[userId] = profile
-                    }
-                    self?.setUserAvatar(url: avatarURL)
-                    self?.infoList.reloadData()
-                    NotificationCenter.default.post(name: NSNotification.Name(userAvatarUpdated), object: nil)
-                } else {
-                    if let someError = error as? EasemobError {
-                        self?.showToast(toast:someError.message ?? "")
-                    } else {
-                        self?.showToast(toast:error?.localizedDescription ?? "")
+                guard let self = self, self.account == saveIdentifier else { return }
+                guard error == nil, let url = result?["avatarUrl"] as? String, !url.isEmpty else {
+                    self.finish(error: (error as? EasemobError)?.message ?? error?.localizedDescription ?? "me_avatar_update_failed".localized())
+                    return
+                }
+                guard let manager = ChatClient.shared().userInfoManager else { self.finish(error: "me_avatar_update_failed".localized()); return }
+                manager.updateOwnUserInfo(url, with: .avatarURL) { [weak self] _, error in
+                    DispatchQueue.main.async {
+                        guard let self = self, self.account == saveIdentifier else { return }
+                        if let error = error { self.finish(error: error.errorDescription ?? "me_avatar_update_failed".localized()); return }
+                        self.commitAvatar(url: url)
                     }
                 }
             }
         }
     }
-    
-    private func setUserAvatar(url: String) {
-        ChatClient.shared().userInfoManager?.updateOwnUserInfo(url, with: .avatarURL, completion: { info, error in
-            DispatchQueue.main.async {
-                if error != nil {
-                    self.showToast(toast: "\(error?.errorDescription ?? "update avatar failed")" )
-                }
-            }
-        })
+
+    private func commitAvatar(url: String) {
+        let id = ChatUIKitContext.shared?.currentUserId ?? ""
+        let existing = (EaseChatProfile.select(where: "id = ?", values: [id]) as? [EaseChatProfile])?.first
+        let profile = existing ?? EaseChatProfile()
+        profile.id = id
+        profile.nickname = ChatUIKitContext.shared?.currentUser?.nickname ?? profile.nickname
+        profile.remark = ChatUIKitContext.shared?.currentUser?.remark ?? profile.remark
+        profile.avatarURL = url
+        profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
+        if existing == nil { profile.insert() } else { profile.updateFFDB() }
+        ChatUIKitContext.shared?.currentUser = profile
+        ChatUIKitContext.shared?.updateChatAndUserTypeCaches(profiles: [profile])
+        CallKitManager.shared.currentUserInfo?.avatarURL = url
+        CallKitManager.shared.usersCache[id]?.avatarURL = url
+        self.isUploading = false
+        NotificationCenter.default.post(name: NSNotification.Name(userAvatarUpdated), object: nil)
+        self.presenter?.showToast(toast: "me_avatar_updated".localized())
     }
 
-    public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        picker.dismiss(animated: true, completion: nil)
+    private func finish(error: String) {
+        self.isUploading = false
+        self.presenter?.showToast(toast: error)
     }
 }
+
 
 extension PersonalInfoViewController: EaseChatUIKit.ThemeSwitchProtocol {
     func switchTheme(style: EaseChatUIKit.ThemeStyle) {

@@ -131,9 +131,15 @@ public struct EasemobRequestHTTPMethod: RawRepresentable, Equatable, Hashable {
     
     @objc public func uploadImage(image: UIImage, callBack: @escaping ((Error?,Dictionary<String,Any>?) -> Void)) {
 
-        guard let imageData = image.jpegData(compressionQuality: 0.1) else { return }
+        guard let imageData = image.jpegData(compressionQuality: 0.1) else {
+            callBack(NSError(domain: "EaseChatDemo.Avatar", code: 1, userInfo: [NSLocalizedDescriptionKey: "me_avatar_update_failed".localized()]), nil)
+            return
+        }
         // 创建上传的 URLRequest
-        guard let userId = ChatUIKitContext.shared?.currentUserId  else { return }
+        guard let userId = ChatUIKitContext.shared?.currentUserId, !userId.isEmpty else {
+            callBack(NSError(domain: "EaseChatDemo.Avatar", code: 2, userInfo: [NSLocalizedDescriptionKey: "me_avatar_update_failed".localized()]), nil)
+            return
+        }
         var request = URLRequest(url: URL(string: ServerHost+"/inside/app/user/\(userId)/avatar/upload")!)
         request.httpMethod = "POST"
         let boundary = Date().timeIntervalSince1970*1000
@@ -150,6 +156,7 @@ public struct EasemobRequestHTTPMethod: RawRepresentable, Equatable, Hashable {
 
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                callBack(error, nil)
                 consoleLogInfo("Upload Image Error: \(error.localizedDescription) : \(request.cURL)", type: .error)
             } else {
                 if let data = data,let response = response as? HTTPURLResponse,response.statusCode == 200 {

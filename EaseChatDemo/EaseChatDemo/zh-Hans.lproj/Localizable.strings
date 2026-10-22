@@ -162,3 +162,23 @@
 "Information Shared with Third Partes" = "三方信息数据共享";
 "Personal Information Collected" = "个人信息收集清单";
 "ICP" = "备案号";
+
+// Me page
+"me_contact_business" = "联系商务";
+"me_visit_easemob" = "访问环信";
+"me_sdk_version" = "SDK 版本";
+"me_uikit_version" = "UIKit 版本";
+"me_privacy_and_agreements" = "隐私与协议";
+"me_privacy_title" = "隐私协议";
+"me_terms_of_service" = "服务条款";
+"me_third_party_sharing" = "第三方信息共享";
+"me_message_notifications" = "消息通知";
+"me_logout" = "退出登录";
+"me_delete_account" = "注销账户";
+"me_signature_placeholder" = "我的签名";
+"me_change_avatar" = "修改头像";
+"me_copy_id" = "复制 ID";
+"me_avatar_updating" = "正在更新头像…";
+"me_avatar_updated" = "头像已更新";
+"me_avatar_update_failed" = "头像更新失败，请重试";
+"me_avatar_debug_unsupported" = "调试模式暂不支持上传头像";
