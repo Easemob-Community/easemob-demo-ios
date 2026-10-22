@@ -86,7 +86,17 @@ extension ConversationList: UITableViewDelegate,UITableViewDataSource {
             cell = ComponentsRegister.shared.ConversationCell.init(style: .default, reuseIdentifier: "EaseChatUIKit.ConversationCell")
         }
         if let info = self.datas[safe: indexPath.row] {
+            info.showContent = info.contentAttribute()
             cell?.refresh(info: info)
+            if let message = info.lastMessage, message.chatType == .groupChat {
+                let account = saveIdentifier
+                GroupMemberAttributesCache.shared.fetchNicknames(groupId: message.conversationId, userIds: [message.from], service: ChatUIKitClient.shared.groupService) { [weak self] changed in
+                    guard changed, account == saveIdentifier, let self = self,
+                          self.datas[safe: indexPath.row] === info else { return }
+                    info.showContent = info.contentAttribute()
+                    self.reloadRows(at: [indexPath], with: .none)
+                }
+            }
         }
         return cell ?? UITableViewCell()
     }

@@ -71,7 +71,7 @@ import UIKit
         if !request.avatarURL.isEmpty {
             self.avatar.image(with: request.avatarURL, placeHolder: Appearance.avatarPlaceHolder)
         } else {
-            self.avatar.image = Appearance.avatarPlaceHolder
+            self.avatar.image(with: "", placeHolder: Appearance.avatarPlaceHolder)
         }
         self.nickName.text = request.nickname.count != 0 ? request.nickname : request.userId
         self.content.text = "NewRequestDetail".chat.localize

@@ -36,6 +36,7 @@ import UIKit
     @objc public required init(chatThread: GroupChatThread?) {
         self.to = chatThread?.threadId ?? ""
         self.chatThread = chatThread
+        if let groupId = chatThread?.parentId, let threadId = chatThread?.threadId { GroupMemberAttributesCache.shared.registerThread(conversationId: threadId, groupId: groupId) }
         let service = ChatServiceImplement(to: self.to)
         service.parentGroupId = chatThread?.parentId ?? ""
         self.chatService = service
@@ -460,6 +461,14 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
     
     public func onMessageVisible(entity: MessageEntity) {
         self.messageVisibleMark(entity: entity)
+        guard let groupId = self.chatThread?.parentId, !groupId.isEmpty else { return }
+        guard let service = self.groupService else { return }
+        let account = saveIdentifier
+        let ids = (self.driver?.dataSource ?? [entity.message]).flatMap { [$0.from, $0.quoteMessage?.from ?? ""] }
+        GroupMemberAttributesCache.shared.fetchNicknames(groupId: groupId, userIds: ids, service: service) { [weak self] changed in
+            guard changed, account == saveIdentifier else { return }
+            self?.driver?.refreshGroupMemberNames?()
+        }
     }
     
     @objc open func messageVisibleMark(entity: MessageEntity) {
@@ -901,7 +910,12 @@ extension ChatThreadViewModel: GroupChatThreadEventListener {
     }
     
     public func onAttributesChangedOfGroupMember(groupId: String, userId: String, operatorId: String, attributes: Dictionary<String, String>) {
-        
+        guard groupId == self.chatThread?.parentId ?? "" else { return }
+        let account = saveIdentifier
+        DispatchQueue.main.async { [weak self] in
+            guard account == saveIdentifier else { return }
+            self?.driver?.refreshGroupMemberNames?()
+        }
     }
 
 }

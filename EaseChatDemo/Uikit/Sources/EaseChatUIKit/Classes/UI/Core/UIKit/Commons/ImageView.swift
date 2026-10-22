@@ -12,65 +12,101 @@ import Combine
 /// A subclass of `UIImageView` that provides a method for loading an image from a URL.
 @objc final public class ImageView: UIImageView {
 
-    private var cancellables = Set<AnyCancellable>()
-    
+    private var imageRequest: AnyCancellable?
+    private var representedURL: URL?
+    private var requestID = UUID()
+    private var loadedImage: UIImage?
+    private var isLoading = false
+    private var completions: [(UIImage?) -> Void] = []
+
     public override init(frame: CGRect) {
         super.init(frame: frame)
     }
-    
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-    /// Loads an image from the specified URL and sets it as the image of the image view.
-    /// - Parameters:
-    ///   - url: The URL of the image to load.
-    ///   - placeHolder: An optional placeholder image to display while the image is being loaded.
-    @MainActor public func image(with url: String,placeHolder: UIImage?) {
-        self.image = placeHolder
-        var urlString = ""
-        if url.hasSuffix(".png") || url.hasSuffix(".jpg") || url.hasSuffix(".jpeg") {
-            urlString = url
-        } else {
-            urlString = url.lowercased()
-        }
-        if !url.hasPrefix("http://"), !url.hasPrefix("https://") {
-            urlString = "https://" + url
-        } else {
-            if url.hasPrefix("http://") {
-                urlString.insert("s", at: 4)
-            }
-        }
-        guard let imageURL = URL(string: urlString) else {
-            return
-        }
-        ImageLoader.shared.loadImage(from: imageURL)
-            .sink(receiveValue: { [weak self] url_image in
-                if url_image != nil,url_image?.size ?? .zero != .zero {
-                    self?.image = url_image
-                }
-            })
-            .store(in: &self.cancellables)
+
+    /// Rebinding the same URL keeps the loaded image or its in-flight request.
+    @MainActor public func image(with url: String, placeHolder: UIImage?) {
+        self.loadImage(url: url, placeholder: placeHolder, completion: nil)
     }
 
-    /// Loads an image from the specified URL and sets it as the image of the image view.
-    /// - Parameters:
-    ///   - url: The URL of the image to load.
-    ///   - placeHolder: An optional placeholder image to display while the image is being loaded.
-    ///   - loadFinished: Load finished callback.
-    public func image(with url: String,placeHolder: UIImage?,loadFinished: @escaping (UIImage?) -> Void) {
-        self.image = placeHolder
-        guard let imageURL = URL(string: url) else {
+    @MainActor public func image(with url: String, placeHolder: UIImage?, loadFinished: @escaping (UIImage?) -> Void) {
+        self.loadImage(url: url, placeholder: placeHolder, completion: loadFinished)
+    }
+
+    private func loadImage(url: String, placeholder: UIImage?, completion: ((UIImage?) -> Void)?) {
+        let imageURL = Self.remoteURL(from: url)
+        if let imageURL = imageURL, imageURL == self.representedURL {
+            if let image = self.loadedImage {
+                self.display(image)
+                completion?(image)
+                return
+            }
+            if self.isLoading {
+                if let completion = completion { self.completions.append(completion) }
+                self.display(placeholder)
+                return
+            }
+        }
+
+        // Invalidate before cancelling: a reused view must never receive its previous image.
+        self.requestID = UUID()
+        self.imageRequest?.cancel()
+        self.imageRequest = nil
+        self.completions.removeAll()
+        self.loadedImage = nil
+        self.isLoading = false
+        self.representedURL = imageURL
+        guard let imageURL = imageURL else {
+            self.display(placeholder)
+            completion?(nil)
             return
         }
-        ImageLoader.shared.loadImage(from: imageURL)
-            .sink(receiveValue: { [weak self] url_image in
-                if url_image != nil,url_image?.size ?? .zero != .zero  {
-                    self?.image = url_image
-                    loadFinished(url_image)
+
+        // Read the cache before touching the visible image, including disk cache hits.
+        if let image = ImageCacheManager.shared.image(for: imageURL.absoluteString) {
+            self.loadedImage = image
+            self.display(image)
+            completion?(image)
+            return
+        }
+        self.display(placeholder)
+        self.isLoading = true
+        if let completion = completion { self.completions.append(completion) }
+        let requestID = self.requestID
+        self.imageRequest = ImageLoader.shared.loadImage(from: imageURL)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] image in
+                guard let self = self, self.requestID == requestID else { return }
+                self.imageRequest = nil
+                self.isLoading = false
+                if let image = image, image.size != .zero {
+                    self.loadedImage = image
+                    self.display(image)
                 }
-            })
-            .store(in: &self.cancellables)
+                // Failure keeps this view's own placeholder; it must not adopt a global avatar.
+                let completions = self.completions
+                self.completions.removeAll()
+                completions.forEach { $0(image) }
+            }
+    }
+
+    private func display(_ image: UIImage?) {
+        if self.image !== image { self.image = image }
+    }
+
+    private static func remoteURL(from value: String) -> URL? {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        let address = value.contains("://") ? value : "https://" + value
+        guard var components = URLComponents(string: address),
+              let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = components.host, !host.isEmpty else { return nil }
+        // Preserve path/query case, particularly object-storage signatures and expiring URLs.
+        components.scheme = "https"
+        return components.url
     }
 }
 

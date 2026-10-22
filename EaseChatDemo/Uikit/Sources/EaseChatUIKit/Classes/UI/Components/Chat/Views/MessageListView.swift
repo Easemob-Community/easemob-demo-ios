@@ -108,6 +108,8 @@ public let MessageInputBarHeight = CGFloat(52)
     /// Message list on first load show db messages .
     /// - Parameter messages: ``[ChatMessage]``
     func refreshMessages(messages: [ChatMessage])
+
+    @objc optional func refreshGroupMemberNames()
     
     /// Message list pull to load more db messages.
     /// - Parameter messages: ``ChatMessage``
@@ -992,6 +994,12 @@ extension MessageListView: IMessageListViewDriver {
         self.firstRealMessageId
     }
     
+    public func refreshGroupMemberNames() {
+        self.messages.forEach { $0.refreshUserNames() }
+        if let message = self.messages.first(where: { $0.message.messageId == self.replyId })?.message { self.replyBar.refresh(message: message) }
+        self.messageList.reloadData()
+    }
+
     public func refreshMessages(messages: [ChatMessage]) {
         self.messageList.refreshControl?.endRefreshing()
         self.messages = self.convertMessages(messages: messages.filter({ !$0.isTimeDividerMessage }), previousTimestamp: 0)

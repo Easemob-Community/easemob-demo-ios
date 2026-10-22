@@ -109,6 +109,12 @@ extension GroupServiceImplement: GroupService {
             completion(group,error)
         })
     }
+
+    public func updateAllowInvites(groupId: String, allowed: Bool, completion: @escaping (ChatGroup?, ChatError?) -> Void) {
+        let configs = ChatGroupOption()
+        configs.allowInvites = allowed
+        ChatClient.shared().groupManager?.updateGroup(withId: groupId, types: .allowInvites, configs: configs, completion: completion)
+    }
     
     public func mute(userIds: [String], duration: TimeInterval, groupId: String, completion: @escaping (ChatGroup?, ChatError?) -> Void) {
         ChatClient.shared().groupManager?.muteMembers(userIds, muteMilliseconds: Int(duration), fromGroup: groupId, completion: { group, error in
@@ -135,9 +141,9 @@ extension GroupServiceImplement: GroupService {
                 completion(group,error)
             })
         case .alias:
-            ChatClient.shared().groupManager?.setMemberAttribute(groupId, userId: ChatClient.shared().currentUsername ?? "", attributes: ["nickName" : content],completion: { error in
-                completion(nil,error)
-            })
+            self.setMemberAttributes(attributes: [GroupMemberAttributesCache.nicknameKey: content], groupId: groupId, userId: ChatUIKitContext.shared?.currentUserId ?? "") { error in
+                completion(nil, error)
+            }
         case .description:
             ChatClient.shared().groupManager?.updateDescription(content, forGroup: groupId, completion: { group, error in
                 completion(group,error)
@@ -186,21 +192,51 @@ extension GroupServiceImplement: GroupService {
     }
     
     public func setMemberAttributes(attributes: Dictionary<String, String>, groupId: String, userId: String, completion: @escaping (ChatError?) -> Void) {
-        ChatClient.shared().groupManager?.setMemberAttribute(groupId, userId: userId,completion: { error in
-            completion(error)
+        let account = saveIdentifier
+        ChatClient.shared().groupManager?.setMemberAttribute(groupId, userId: userId, attributes: attributes, completion: { [weak self] error in
+            DispatchQueue.main.async {
+                guard account == saveIdentifier else { return }
+                if error == nil { self?.publishMemberAttributes(groupId: groupId, userId: userId, operatorId: ChatUIKitContext.shared?.currentUserId ?? "", attributes: attributes) }
+                completion(error)
+            }
         })
     }
-    
+
     public func fetchMemberAttribute(groupId: String, userId: String, completion: @escaping (ChatError?, Dictionary<String, String>?) -> Void) {
+        let account = saveIdentifier
+        let previousName = GroupMemberAttributesCache.shared.nickname(groupId: groupId, userId: userId)
         ChatClient.shared().groupManager?.fetchMemberAttribute(groupId, userId: userId, completion: { attributes, error in
-            completion(error,attributes)
+            DispatchQueue.main.async {
+                guard account == saveIdentifier else { return }
+                var result = attributes
+                let currentName = GroupMemberAttributesCache.shared.nickname(groupId: groupId, userId: userId)
+                if error == nil, currentName == previousName {
+                    GroupMemberAttributesCache.shared.cache(groupId: groupId, userId: userId, key: GroupMemberAttributesCache.nicknameKey, value: attributes?[GroupMemberAttributesCache.nicknameKey] ?? "")
+                }
+                if currentName != previousName, let currentName = currentName {
+                    result = result ?? [:]
+                    result?[GroupMemberAttributesCache.nicknameKey] = currentName
+                }
+                completion(error, result)
+            }
         })
     }
-    
+
     public func fetchMembersAttribute(groupId: String, userIds: [String], keys:[String], completion: @escaping (ChatError?, Dictionary<String, Dictionary<String, String>>?) -> Void) {
+        let account = saveIdentifier
         ChatClient.shared().groupManager?.fetchMembersAttributes(groupId, userIds: userIds, keys: keys, completion: { attributes, error in
-            completion(error,attributes)
+            DispatchQueue.main.async {
+                guard account == saveIdentifier else { return }
+                completion(error, attributes)
+            }
         })
+    }
+
+    private func publishMemberAttributes(groupId: String, userId: String, operatorId: String, attributes: [String: String]) {
+        for (key, value) in attributes { GroupMemberAttributesCache.shared.cache(groupId: groupId, userId: userId, key: key, value: value) }
+        for listener in self.responseDelegates.allObjects {
+            listener.onAttributesChangedOfGroupMember?(groupId: groupId, userId: userId, operatorId: operatorId, attributes: attributes)
+        }
     }
     
     public func fetchParticipants(groupId: String, cursor: String, pageSize: UInt, completion: @escaping (CursorResult<NSString>?, ChatError?) -> Void) {
@@ -305,8 +341,10 @@ extension GroupServiceImplement: GroupEventsListener {
     }
     
     public func onAttributesChangedOfGroupMember(_ groupId: String, userId: String, attributes: [String : String]? = nil, operatorId: String) {
-        for listener in self.responseDelegates.allObjects {
-            listener.onAttributesChangedOfGroupMember?(groupId: groupId, userId: userId, operatorId: operatorId, attributes: attributes ?? [:])
+        let account = saveIdentifier
+        DispatchQueue.main.async {
+            guard account == saveIdentifier else { return }
+            self.publishMemberAttributes(groupId: groupId, userId: userId, operatorId: operatorId, attributes: attributes ?? [:])
         }
     }
 }
@@ -432,7 +470,8 @@ extension ChatMessage {
         if !currentUserId.isEmpty, userId.caseInsensitiveCompare(currentUserId) == .orderedSame {
             return (added ? "group_admin_notice_self_added" : "group_admin_notice_self_removed").chat.localize
         }
-        let nickname = self.ext?["groupAdminNickname"] as? String ?? ""
+        let alias = GroupMemberAttributesCache.shared.nickname(groupId: self.conversationId, userId: userId) ?? ""
+        let nickname = alias.isEmpty ? (self.ext?["groupAdminNickname"] as? String ?? "") : alias
         return String(format: (added ? "group_admin_notice_added" : "group_admin_notice_removed").chat.localize,
                       nickname.isEmpty ? userId : nickname)
     }

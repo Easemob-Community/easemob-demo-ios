@@ -314,6 +314,11 @@ public let urlPreviewImageHeight = CGFloat(137)
     
     
     
+    public func refreshUserNames() {
+        self.replyTitle = self.convertReplyTitle()
+        self.topicContent = self.convertTopicContent()
+    }
+
     open func convertReplyTitle() -> NSAttributedString? {
         if let quoteMessage = self.message.quoteMessage {
             var showUserName = ""
@@ -984,30 +989,37 @@ extension ChatMessage {
     
     /// ``ChatUserProfileProtocol``
     @objc public var user: ChatUserProfileProtocol? {
-        
-        if let senderInfo = senderInfo {
-            let user = ChatUserProfile()
-            user.id = from
-            user.avatarURL = senderInfo.avatarUrl ?? ""
-            user.nickname = senderInfo.nickname ?? ""
-            user.remark = senderInfo.remark ?? ""
-            return user
-        }
-        let cacheUser = ChatUIKitContext.shared?.userCache?[self.from]
-        if cacheUser != nil,let remark = cacheUser?.remark,!remark.isEmpty {
-            ChatUIKitContext.shared?.chatCache?[self.from]?.remark = remark
-        }
-        let chatUser = ChatUIKitContext.shared?.chatCache?[self.from]
-        if chatUser?.nickname.isEmpty ?? true {
-            chatUser?.nickname = cacheUser?.nickname ?? ""
-        }
-        if from == ChatClient.shared().currentUsername ?? "",let currentUser = ChatUIKitContext.shared?.currentUser {
-            return currentUser
-        }
-        if chatUser == nil,cacheUser != nil {
-            return cacheUser
-        }
-        return chatUser
+        let base: ChatUserProfileProtocol? = {
+            if let senderInfo = senderInfo {
+                let user = ChatUserProfile()
+                user.id = from
+                user.avatarURL = senderInfo.avatarUrl ?? ""
+                user.nickname = senderInfo.nickname ?? ""
+                user.remark = senderInfo.remark ?? ""
+                return user
+            }
+            let cacheUser = ChatUIKitContext.shared?.userCache?[self.from]
+            if cacheUser != nil,let remark = cacheUser?.remark,!remark.isEmpty {
+                ChatUIKitContext.shared?.chatCache?[self.from]?.remark = remark
+            }
+            let chatUser = ChatUIKitContext.shared?.chatCache?[self.from]
+            if chatUser?.nickname.isEmpty ?? true {
+                chatUser?.nickname = cacheUser?.nickname ?? ""
+            }
+            if from == ChatClient.shared().currentUsername ?? "",let currentUser = ChatUIKitContext.shared?.currentUser {
+                return currentUser
+            }
+            if chatUser == nil,cacheUser != nil {
+                return cacheUser
+            }
+            return chatUser
+        }()
+        guard self.chatType == .groupChat else { return base }
+        let fallback = ChatUserProfile()
+        fallback.id = self.from
+        let profile = base ?? fallback
+        let cache = GroupMemberAttributesCache.shared
+        return cache.displayProfile(groupId: cache.groupId(conversationId: self.conversationId), profile: profile)
     }
     
     /// Whether message edited or not.

@@ -55,7 +55,7 @@ import UIKit
         let nickName = profile.nickname.isEmpty ? profile.id:profile.nickname
         self.nickName.attributedText = self.highlightKeywords(keyword: keyword, in: nickName)
         if profile.avatarURL.lowercased() == "all" {
-            self.avatar.image = UIImage(chatNamed: "all")
+            self.avatar.image(with: "", placeHolder: UIImage(chatNamed: "all"))
         } else {
             self.avatar.image(with: profile.avatarURL, placeHolder:Appearance.conversation.singlePlaceHolder)
         }

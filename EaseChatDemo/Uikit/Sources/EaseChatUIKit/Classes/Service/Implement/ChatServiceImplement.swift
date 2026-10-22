@@ -465,7 +465,8 @@ struct MessageRecallNotice {
         }
     }
 
-    static func nickname(userId: String, fallback: String = "") -> String {
+    static func nickname(userId: String, fallback: String = "", groupId: String = "") -> String {
+        if let alias = GroupMemberAttributesCache.shared.nickname(groupId: groupId, userId: userId), !alias.isEmpty { return alias }
         let names = [ChatUIKitContext.shared?.userCache?[userId]?.nickname,
                      ChatUIKitContext.shared?.chatCache?[userId]?.nickname,
                      ChatUIKitContext.shared?.currentUserId == userId ? ChatUIKitContext.shared?.currentUser?.nickname : nil,
@@ -479,13 +480,13 @@ extension ChatMessage {
         guard let body = self.body as? ChatCustomMessageBody, body.event == EaseChatUIKit_alert_message,
               let operatorId = self.ext?["recallOperatorId"] as? String,
               let senderId = self.ext?["recallSenderId"] as? String else { return nil }
-        let operatorName = MessageRecallNotice.nickname(userId: operatorId, fallback: self.ext?["recallOperatorNickname"] as? String ?? "")
+        let operatorName = MessageRecallNotice.nickname(userId: operatorId, fallback: self.ext?["recallOperatorNickname"] as? String ?? "", groupId: self.ext?["recallGroupId"] as? String ?? self.conversationId)
         let contextUserId = ChatUIKitContext.shared?.currentUserId ?? ""
         let currentUserId = contextUserId.isEmpty ? (ChatClient.shared().currentUsername ?? "") : contextUserId
         if !currentUserId.isEmpty, senderId.caseInsensitiveCompare(currentUserId) == .orderedSame {
             return String(format: "group_moderator_recall_self_notice".chat.localize, operatorName)
         }
-        let senderName = MessageRecallNotice.nickname(userId: senderId, fallback: self.ext?["recallSenderNickname"] as? String ?? "")
+        let senderName = MessageRecallNotice.nickname(userId: senderId, fallback: self.ext?["recallSenderNickname"] as? String ?? "", groupId: self.ext?["recallGroupId"] as? String ?? self.conversationId)
         return String(format: "group_moderator_recall_notice".chat.localize, operatorName, senderName)
     }
 

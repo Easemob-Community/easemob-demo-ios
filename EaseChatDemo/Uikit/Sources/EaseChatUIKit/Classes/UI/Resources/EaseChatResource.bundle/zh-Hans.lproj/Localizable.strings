@@ -82,7 +82,7 @@
 "group_admin_settings_title" = "设置管理员";
 "group_admin_remove_action" = "移除管理员";
 "group_admin_add_confirm" = "将%@设置为管理员？";
-"group_admin_remove_confirm" = "移除%@的管理员身份？";
+"group_admin_remove_confirm" = "确认移除管理员“%@”？";
 "group_admin_owner_only" = "仅群主可以设置管理员";
 "group_admin_load_failed" = "加载管理员设置失败，请重试";
 "group_admin_update_failed" = "更新管理员失败，请重试";
@@ -235,3 +235,18 @@
 "Yesterday" = "昨天";
 
 "The user not found" = "未找到该用户";
+
+"group_details_title" = "群详情";
+"group_details_id" = "群ID";
+"group_details_view_all" = "查看全部";
+"group_details_pin" = "会话置顶";
+"group_details_allow_invites" = "允许群成员邀请他人进群";
+"group_details_update_failed" = "更新失败，请重试";
+"group_management_title" = "群管理";
+"group_management_owner" = "群主";
+"group_management_admins" = "管理员";
+"group_management_no_admins" = "没有管理员";
+"group_admin_removed" = "已移除";
+"group_management_transfer_confirm" = "确认将群主转让给“%@”？";
+"group_management_transfer_success" = "群主已转让";
+"group_details_search_history" = "查找聊天记录";

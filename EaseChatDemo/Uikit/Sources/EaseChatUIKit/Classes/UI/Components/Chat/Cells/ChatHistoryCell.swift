@@ -66,7 +66,7 @@ import UIKit
         if let avatarURL = entity.message.user?.avatarURL {
             self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
         } else {
-            self.avatar.image = Appearance.conversation.singlePlaceHolder
+            self.avatar.image(with: "", placeHolder: Appearance.conversation.singlePlaceHolder)
         }
         self.messageDate.text = entity.message.showDetailDate
         switch entity.message.body.type {

@@ -50,7 +50,7 @@ import UIKit
         if let body = entity.message.body as? ChatCustomMessageBody {
             if let avatarURL = body.customExt?["avatar"] as? String {
                 if avatarURL.isEmpty {
-                    self.avatar.image = Appearance.avatarPlaceHolder
+                    self.avatar.image(with: "", placeHolder: Appearance.avatarPlaceHolder)
                 } else {
                     self.avatar.image(with: avatarURL, placeHolder: Appearance.avatarPlaceHolder)
                 }

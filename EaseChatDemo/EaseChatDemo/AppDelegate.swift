@@ -205,6 +205,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func silentLogin(userId: String) {
+        let userId = self.userName.isEmpty ? (ChatClient.shared().currentUsername ?? ""):self.userName
+
+        guard !userId.isEmpty else {
+            return
+        }
         var user = ChatUIKitContext.shared?.currentUser
         if user == nil {
             let profile = EaseChatProfile()
@@ -213,7 +218,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             user = profile
         }
         ChatUIKitClient.shared.login(user: user!, token: self.token) { [weak self] error in
-            guard let self,let error = error else { return }
+            guard let _ = self,let error = error else { return }
             consoleLogInfo("Silent login failed:\(error.errorDescription ?? "")", type: .error)
             NotificationCenter.default.post(name: Notification.Name(backLoginPage), object: nil)
         }

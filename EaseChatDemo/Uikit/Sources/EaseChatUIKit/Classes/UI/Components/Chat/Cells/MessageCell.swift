@@ -326,14 +326,7 @@ let message_bubble_space = CGFloat(1)
         }
         //avatar
         self.avatar.cornerRadius(Appearance.avatarRadius)
-        self.avatar.image = Appearance.avatarPlaceHolder
-        if let user = entity.message.user {
-            if !user.avatarURL.isEmpty {
-                self.avatar.image(with: user.avatarURL, placeHolder: Appearance.avatarPlaceHolder)
-            } else {
-                self.avatar.image = Appearance.avatarPlaceHolder
-            }
-        }
+        self.avatar.image(with: entity.message.user?.avatarURL ?? "", placeHolder: Appearance.avatarPlaceHolder)
         //message status
         self.status.image = entity.stateImage
         if entity.state == .sending {

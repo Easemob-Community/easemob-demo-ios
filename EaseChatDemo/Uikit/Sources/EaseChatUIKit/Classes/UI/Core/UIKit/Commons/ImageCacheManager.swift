@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 import Combine
+import CryptoKit
 
 /**
  A singleton class that manages caching of images in memory and on disk.
@@ -18,6 +19,7 @@ final public class ImageCacheManager {
     
     /// The memory cache used to store images.
     private let memoryCache = NSCache<NSString, UIImage>()
+    private let diskQueue = DispatchQueue(label: "EaseChatUIKit.ImageCache.disk", qos: .utility)
     
     /// The file manager used to manage files on disk.
     private let fileManager = FileManager.default
@@ -51,7 +53,9 @@ final public class ImageCacheManager {
     }
     
      private func cachePath(for key: String) -> String {
-       return cacheDirectory + key.replacingOccurrences(of: "/", with: "-")
+        // Version the key so placeholders cached by the old loader cannot masquerade as avatars.
+        let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        return self.cacheDirectory + "v2-" + digest
     }
     
     /**
@@ -87,13 +91,12 @@ final public class ImageCacheManager {
         - key: The key to associate with the image.
      */
     func cacheImage(_ image: UIImage, for key: String) {
-        DispatchQueue.main.async {
-            self.memoryCache.setObject(image, forKey: key as NSString)
-            
-            // Save image to disk cache
-            let filePath = self.cachePath(for: key)
-            if let data = image.pngData()  {
-                self.fileManager.createFile(atPath: filePath, contents: data, attributes: nil)
+        guard image.size != .zero else { return }
+        // Publish to memory synchronously so another cell can use the image immediately.
+        self.memoryCache.setObject(image, forKey: key as NSString)
+        self.diskQueue.async {
+            if let data = image.pngData() {
+                try? data.write(to: URL(fileURLWithPath: self.cachePath(for: key)), options: .atomic)
             }
         }
     }

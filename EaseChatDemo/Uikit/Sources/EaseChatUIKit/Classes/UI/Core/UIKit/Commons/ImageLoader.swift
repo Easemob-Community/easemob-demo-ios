@@ -47,21 +47,14 @@ public struct ImageLoader {
             return Just(cachedImage).eraseToAnyPublisher()
         } else {
             return self.session.dataTaskPublisher(for: url)
-                .map({
-                    if ($0.response as? HTTPURLResponse)?.statusCode ?? 0 != 200 {
-                        return Appearance.avatarPlaceHolder ?? UIImage()
-                    } else {
-                        return UIImage(data: $0.data) ?? UIImage()
-                    }
-                })
-                .map({ image in
-                    if image.size != .zero {
-                        self.cache.cacheImage(image, for: url.absoluteString)
-                        return image
-                    }
-                    return UIImage()
-                })
-                .replaceError(with: Appearance.avatarPlaceHolder)
+                .map { output -> UIImage? in
+                    guard let response = output.response as? HTTPURLResponse,
+                          (200..<300).contains(response.statusCode),
+                          let image = UIImage(data: output.data), image.size != .zero else { return nil }
+                    self.cache.cacheImage(image, for: url.absoluteString)
+                    return image
+                }
+                .replaceError(with: nil)
                 .receive(on: DispatchQueue.main)
                 .eraseToAnyPublisher()
         }

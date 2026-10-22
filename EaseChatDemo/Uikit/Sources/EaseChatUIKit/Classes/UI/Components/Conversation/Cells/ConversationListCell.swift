@@ -219,7 +219,7 @@ extension ConversationListCell: ThemeSwitchProtocol {
         var text = NSMutableAttributedString()
         let from = message.from
         let mentionText = "Mentioned".chat.localize
-        let user = ChatUIKitContext.shared?.userCache?[from]
+        let user = message.user ?? ChatUIKitContext.shared?.userCache?[from]
         var nickName = user?.remark ?? ""
         if nickName.isEmpty {
             nickName = user?.nickname ?? ""

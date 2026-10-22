@@ -71,6 +71,7 @@ public let disturb_change = "EaseUIKit_do_not_disturb_changed"
         self.multiService?.unbindMultiDeviceListener(listener: self)
         self.multiService?.bindMultiDeviceListener(listener: self)
         self.driver?.addActionHandler(actionHandler: self)
+        ChatUIKitClient.shared.groupService.bindGroupEventsListener(listener: self)
         ChatUIKitClient.shared.addDataSyncListener(self)
         self.loadExistLocalDataIfEmptyFetchServer()
     }
@@ -126,6 +127,7 @@ public let disturb_change = "EaseUIKit_do_not_disturb_changed"
         self.driver?.removeActionHandler(actionHandler: self)
         self.service?.unbindConversationEventsListener(listener: self)
         self.multiService?.unbindMultiDeviceListener(listener: self)
+        ChatUIKitClient.shared.groupService.unbindGroupEventsListener(listener: self)
         ChatUIKitClient.shared.removeDataSyncListener(self)
         self.driver = nil
         self.service = nil
@@ -550,6 +552,17 @@ extension ConversationViewModel: ChatDataSyncListener {
         self.conversationSyncClosure?(false)
         if error == nil {
             self.service?.loadExistConversations()
+        }
+    }
+}
+
+extension ConversationViewModel: GroupServiceListener {
+    public func onAttributesChangedOfGroupMember(groupId: String, userId: String, operatorId: String, attributes: [String: String]) {
+        let account = saveIdentifier
+        DispatchQueue.main.async { [weak self] in
+            guard account == saveIdentifier, let self = self,
+                  let conversations = ChatClient.shared().chatManager?.getAllConversations(true) else { return }
+            self.driver?.refreshList(infos: self.mapper(objects: conversations))
         }
     }
 }

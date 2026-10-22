@@ -94,6 +94,9 @@ import Foundation
     ///   - groupId: ID of the group.
     ///   - completion: The request callback contains the group object and error information. If successful, a non-empty group object will be returned. If failed, a non-empty group object will be returned.
     func removeAdmin(userId: String,from groupId: String,completion: @escaping (ChatGroup?,ChatError?) -> Void)
+
+    /// Updates whether ordinary members of a private group can invite others. Owner only.
+    @objc optional func updateAllowInvites(groupId: String, allowed: Bool, completion: @escaping (ChatGroup?, ChatError?) -> Void)
     
     /// Mute a user.
     /// - Parameters:

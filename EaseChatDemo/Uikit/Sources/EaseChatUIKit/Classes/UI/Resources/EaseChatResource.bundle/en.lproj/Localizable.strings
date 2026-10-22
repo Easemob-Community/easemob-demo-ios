@@ -233,3 +233,18 @@
 "Yesterday" = "Yesterday";
 
 "The user not found" = "The user not found";
+
+"group_details_title" = "Group Details";
+"group_details_id" = "Group ID";
+"group_details_view_all" = "View all";
+"group_details_pin" = "Pin conversation";
+"group_details_allow_invites" = "Allow members to invite others";
+"group_details_update_failed" = "Couldn’t update. Please try again.";
+"group_management_title" = "Group Management";
+"group_management_owner" = "Owner";
+"group_management_admins" = "Admins";
+"group_management_no_admins" = "No admins";
+"group_admin_removed" = "Removed";
+"group_management_transfer_confirm" = "Transfer group ownership to “%@”?";
+"group_management_transfer_success" = "Group ownership transferred";
+"group_details_search_history" = "Search chat history";

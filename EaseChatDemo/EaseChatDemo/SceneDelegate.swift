@@ -155,6 +155,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 ChatUIKitClient.shared.logout(unbindNotificationDeviceToken: false) { _ in }
             }
         }
+        UserDefaults.standard.removeObject(forKey: "EaseChatDemoUserName")
+        UserDefaults.standard.removeObject(forKey: "EaseChatDemoUserToken")
         CallKitManager.shared.hangup()
         CallKitManager.shared.cleanUserDefaults()
         DispatchQueue.main.async {

@@ -18,6 +18,8 @@ import UIKit
     private var modifySuccess: ((String) -> ())?
     
     public private(set) var editType = GroupInfoEditType.name
+
+    public var editable = true
     
     public private(set) lazy var navigation: ChatNavigationBar = {
         ChatNavigationBar(textAlignment: .left,rightTitle: "Save".chat.localize)
@@ -58,6 +60,9 @@ import UIKit
         self.view.addSubViews([self.navigation,self.container,self.contentEditor,self.limitCount])
         self.contentEditor.text = self.raw
         self.limitCount.text = "\(self.raw.count)/\(self.textLimit())"
+        self.contentEditor.isEditable = self.editable
+        self.navigation.rightItem.isHidden = !self.editable
+        self.limitCount.isHidden = !self.editable
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
         
@@ -65,7 +70,7 @@ import UIKit
     
     open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        self.contentEditor.becomeFirstResponder()
+        if self.editable { self.contentEditor.becomeFirstResponder() }
     }
     
     private func titleForHeader() -> String {
@@ -103,6 +108,7 @@ import UIKit
     }
     
     private func save() {
+        guard self.editable else { return }
         self.view.endEditing(true)
         guard let text = self.contentEditor.text  else { return }
         if text.count > self.textLimit() {

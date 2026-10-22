@@ -22,10 +22,12 @@ final class MineGroupDetailViewController: GroupInfoViewController {
     }
 
     override func viewDidLoad() {
-        Appearance.contact.detailExtensionActionItems = [ContactListHeaderItem(featureIdentify: "Chat", featureName: "Chat".chat.localize, featureIcon: UIImage(named: "chatTo", in: .chatBundle, with: nil)),ContactListHeaderItem(featureIdentify: "VideoCall", featureName: "multiCall".localized(), featureIcon: UIImage(named: "call", in: .chatBundle, with: nil)),ContactListHeaderItem(featureIdentify: "SearchMessages", featureName: "SearchMessages".chat.localize, featureIcon: UIImage(named: "search_history_messages", in: .chatBundle, with: nil))]
-        let item = EaseChatUIKit.ActionSheetItem(title: "barrage_long_press_menu_report".chat.localize, type: .normal, tag: "report")
-        self.ownerOptions.insert(item, at: 0)
-        self.memberOptions.insert(item, at: 0)
+//        let item = EaseChatUIKit.ActionSheetItem(title: "barrage_long_press_menu_report".chat.localize, type: .normal, tag: "report")
+//        self.ownerOptions.insert(item, at: 0)
+//        self.memberOptions.insert(item, at: 0)
+//        let call = EaseChatUIKit.ActionSheetItem(title: "VideoCall".chat.localize, type: .normal, tag: "group_call")
+//        self.ownerOptions.insert(call, at: 0)
+//        self.memberOptions.insert(call, at: 0)
         super.viewDidLoad()
         // Do any additional setup after loading the view.
         self.header.status.isHidden = true
@@ -154,35 +156,6 @@ final class MineGroupDetailViewController: GroupInfoViewController {
         }
     }
     
-    override func fetchGroupInfo(groupId: String) {
-        // Fetch group information from the service
-        self.service.fetchGroupInfo(groupId: groupId) { [weak self] group, error in
-            guard let `self` = self else { return }
-            if error == nil, let group = group {
-                self.chatGroup = group
-                self.refreshManagementItems()
-                let showName = self.chatGroup.groupName.isEmpty ? groupId:self.chatGroup.groupName
-                self.header.nickName.text = showName
-                self.header.userState = .offline
-                self.header.detailText = groupId
-                self.menuList.reloadData()
-                let profile = ChatUserProfile()
-                profile.id = self.chatGroup.groupId
-                profile.nickname = self.chatGroup.groupName
-                if !self.chatGroup.groupName.isEmpty {
-                    profile.avatarURL = self.chatGroup.settings.ext
-                    self.header.avatarURL = self.chatGroup.settings.ext
-                }
-                ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
-            } else {
-                self.chatGroup = ChatGroup(id: groupId)
-                self.refreshManagementItems()
-                self.showToast(toast: "\(error?.errorDescription ?? "")")
-            }
-           
-        }
-    }
-    
     override func disbandRequest() {
         self.service.disband(groupId: self.chatGroup.groupId) { [weak self] error in
             guard let `self` = self else { return }
@@ -208,6 +181,7 @@ final class MineGroupDetailViewController: GroupInfoViewController {
                 case "transfer_owner": self.transfer()
                 case "quit_group": self.leave()
                 case "report": self.reportUser()
+                case "group_call": self.groupCall()
                 default:
                     break
                 }

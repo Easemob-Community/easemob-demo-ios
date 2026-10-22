@@ -634,6 +634,14 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
     
     public func onMessageVisible(entity: MessageEntity) {
         self.messageVisibleMark(entity: entity)
+        guard self.chatType == .group else { return }; let groupId = self.to
+        guard let service = self.groupService else { return }
+        let account = saveIdentifier
+        let ids = (self.driver?.dataSource ?? [entity.message]).flatMap { [$0.from, $0.quoteMessage?.from ?? ""] }
+        GroupMemberAttributesCache.shared.fetchNicknames(groupId: groupId, userIds: ids, service: service) { [weak self] changed in
+            guard changed, account == saveIdentifier else { return }
+            self?.driver?.refreshGroupMemberNames?()
+        }
     }
     
     @objc open func messageVisibleMark(entity: MessageEntity) {
@@ -850,7 +858,7 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
         }
         // The message may carry a profile which only knows the id, so prefer the cached one for the nickname.
         let user = ChatUIKitContext.shared?.userCache?[profile.id] ?? profile
-        self.updateMentionIds(profile: user, type: .add)
+        self.updateMentionIds(profile: GroupMemberAttributesCache.shared.displayProfile(groupId: self.to, profile: user), type: .add)
     }
     
     public func onInputBoxEventsOccur(action type: MessageInputBarActionType, attributeText: NSAttributedString?) {
@@ -1176,16 +1184,11 @@ extension MessageListViewModel: GroupChatThreadEventListener {
     }
     
     public func onAttributesChangedOfGroupMember(groupId: String, userId: String, operatorId: String, attributes: Dictionary<String, String>) {
-        if userId != ChatUIKitContext.shared?.currentUserId ?? "" {
-            ChatClient.shared().chatManager?.getConversationWithConvId(groupId)?.loadMessages(withKeyword: "", timestamp: Int64(Date().timeIntervalSince1970*1000), count: 1, fromUsers: [userId], searchDirection: .up, scope: .content, completion: { messages, error in
-                if error === nil,let message = messages?.first {
-                    message.ext?["remark"] = attributes["nickName"]
-                    ChatClient.shared().chatManager?.update(message)
-                    ChatUIKitContext.shared?.chatCache?[userId]?.remark = attributes["nickName"] ?? ""
-                } else {
-                    consoleLogInfo("onAttributesChangedOfGroupMember loadMessages user:\(userId)'s latest message error:\(error?.errorDescription ?? "")", type: .error)
-                }
-            })
+        guard groupId == self.to else { return }
+        let account = saveIdentifier
+        DispatchQueue.main.async { [weak self] in
+            guard account == saveIdentifier else { return }
+            self?.driver?.refreshGroupMemberNames?()
         }
     }
 

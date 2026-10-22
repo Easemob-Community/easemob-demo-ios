@@ -86,7 +86,7 @@ import UIKit
         if !profile.avatarURL.isEmpty {
             self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
         } else {
-            self.avatar.image = Appearance.conversation.singlePlaceHolder
+            self.avatar.image(with: "", placeHolder: Appearance.conversation.singlePlaceHolder)
         }
         var image = UIImage(chatNamed: "reaction_trash")
         if Theme.style == .dark {
