@@ -68,6 +68,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let options = ChatOptions(appkey: appKey)
         options.includeSendMessageInMessageListener = true
         options.enableConsoleLog = true
+        options.enableUserInfo = true
         options.usingHttpsOnly = true
         options.deleteMessagesOnLeaveGroup = false
         options.enableDeliveryAck = true
@@ -217,7 +218,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             user = profile
         }
         ChatUIKitClient.shared.login(user: user!, token: self.token) { [weak self] error in
-            guard let _ = self,let error = error else { return }
+            guard let _ = self,let error = error else {
+                NotificationCenter.default.post(name: Notification.Name(rawValue: "cu_avatar_update_notification"), object: nil, userInfo: nil)
+                return
+            }
             consoleLogInfo("Silent login failed:\(error.errorDescription ?? "")", type: .error)
             NotificationCenter.default.post(name: Notification.Name(backLoginPage), object: nil)
         }

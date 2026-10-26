@@ -72,6 +72,7 @@ final class MeViewController: UIViewController {
         self.view.addSubview(self.menuList)
         self.header.avatarTapped = { [weak self] in self?.avatarEditor.showActions() }
         self.header.profileTapped = { [weak self] in self?.viewProfile() }
+        self.header.signatureTapped = { [weak self] in self?.editSignature() }
         self.header.copyIdentifier = { [weak self] in
             UIPasteboard.general.string = self?.currentUserId ?? ""
             self?.showToast(toast: "Copied".chat.localize)
@@ -224,8 +225,23 @@ extension MeViewController: UITableViewDelegate, UITableViewDataSource {
     
     private func viewProfile() {
         let vc = PersonalInfoViewController()
+        vc.signature = self.signature
+        vc.signatureDidChange = { [weak self] signature in self?.updateSignature(signature) }
         vc.hidesBottomBarWhenPushed = true
         self.navigationController?.pushViewController(vc, animated: true)
+    }
+
+    private func editSignature() {
+        let controller = UserSignatureEditViewController(signature: self.signature) { [weak self] signature in
+            self?.updateSignature(signature)
+        }
+        controller.hidesBottomBarWhenPushed = true
+        self.navigationController?.pushViewController(controller, animated: true)
+    }
+
+    private func updateSignature(_ signature: String) {
+        self.signature = signature
+        self.refreshProfile()
     }
     
     private func viewGeneral() {
@@ -361,6 +377,7 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
     private let avatar = ImageView(frame: .zero)
     private let avatarButton = UIButton(type: .custom)
     private let profileButton = UIButton(type: .custom)
+    private let signatureButton = UIButton(type: .custom)
     private let nickname = UILabel()
     private let signature = UILabel()
     private let identifier = UIButton(type: .system)
@@ -368,6 +385,7 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
     private var statusState = PresenceManager.State.online
     var avatarTapped: (() -> Void)?
     var profileTapped: (() -> Void)?
+    var signatureTapped: (() -> Void)?
     var copyIdentifier: (() -> Void)?
 
     override init(frame: CGRect) {
@@ -386,9 +404,11 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
         self.avatarButton.addAction(UIAction { [weak self] _ in self?.avatarTapped?() }, for: .touchUpInside)
         self.profileButton.accessibilityLabel = "Personal Info".localized()
         self.profileButton.addAction(UIAction { [weak self] _ in self?.profileTapped?() }, for: .touchUpInside)
+        self.signatureButton.accessibilityLabel = "me_edit_signature".localized()
+        self.signatureButton.addAction(UIAction { [weak self] _ in self?.signatureTapped?() }, for: .touchUpInside)
         self.identifier.accessibilityLabel = "me_copy_id".localized()
         self.identifier.addAction(UIAction { [weak self] _ in self?.copyIdentifier?() }, for: .touchUpInside)
-        self.addSubViews([self.avatar, self.nickname, self.signature, self.avatarButton, self.profileButton, self.identifier, self.status])
+        self.addSubViews([self.avatar, self.nickname, self.signature, self.avatarButton, self.profileButton, self.signatureButton, self.identifier, self.status])
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
     }
@@ -397,10 +417,11 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
     func configure(nickname: String, signature: String, userId: String, avatarURL: String) {
         self.nickname.text = nickname
         self.signature.text = signature.isEmpty ? "me_signature_placeholder".localized() : signature
+        self.signatureButton.accessibilityValue = self.signature.text
         self.avatar.image(with: avatarURL, placeHolder: self.avatarPlaceholder)
         var configuration = UIButton.Configuration.plain()
         configuration.title = "ID: " + userId
-        configuration.image = UIImage(systemName: "doc.on.doc.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12))
+        configuration.image = UIImage(named: "doc_on_doc")
         configuration.imagePlacement = .trailing
         configuration.imagePadding = 4
         configuration.contentInsets = .zero
@@ -419,7 +440,8 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
         self.avatarButton.frame = self.avatar.frame
         self.nickname.frame = CGRect(x: 100, y: 38, width: self.bounds.width - 116, height: 26)
         self.signature.frame = CGRect(x: 100, y: 68, width: self.bounds.width - 116, height: 20)
-        self.profileButton.frame = CGRect(x: 96, y: 32, width: self.bounds.width - 112, height: 58)
+        self.profileButton.frame = CGRect(x: 96, y: 32, width: self.bounds.width - 112, height: 32)
+        self.signatureButton.frame = CGRect(x: 96, y: 64, width: self.bounds.width - 112, height: 24)
         self.identifier.frame = CGRect(x: 100, y: 88, width: self.bounds.width - 116, height: 24)
         self.status.frame = CGRect(x: self.avatar.frame.maxX - 20, y: self.avatar.frame.maxY - 20, width: 20, height: 20)
     }

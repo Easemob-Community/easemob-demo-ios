@@ -201,6 +201,19 @@ public let cache_update_notification = "ChatUIKitContextUpdateCache"
             ChatClient.shared().userInfoManager?.updateOwn(userInfo)
             return
         }
+        
+        let currentUser = ChatUserProfile()
+        currentUser.id = profile.userId ?? ""
+        currentUser.avatarURL = profile.avatarUrl ?? ""
+        currentUser.remark = ChatClient.shared().contactManager?.getContact(currentUser.id)?.remark ?? ""
+        ChatUIKitContext.shared?.currentUser = currentUser
+        ChatUIKitContext.shared?.updateCache(type: .user, profile: currentUser)
+
+        if user.nickname.isEmpty,
+           user.avatarURL.isEmpty,
+           user.remark.isEmpty {
+            return
+        }
         if user.nickname == profile.nickname,
            user.avatarURL == profile.avatarUrl {
             return

@@ -51,7 +51,7 @@ class PresenceManager: NSObject {
         .online: "Online".localized(),
         .offline: "Offline".localized(),
         .busy: "Busy".localized(),
-        .doNotDisturb: "group_details_switch_donotdisturb".chat.localize,
+        .doNotDisturb: "Do Not Disturb".localized(),
         .away: "Away".localized()
     ]
         
@@ -83,11 +83,18 @@ class PresenceManager: NSObject {
     }
     
     var currentUserStatus: String {
-        guard let currentUsername = ChatClient.shared().currentUsername, let presence = self.presences[currentUsername] else {
+        guard let currentUsername = ChatClient.shared().currentUsername,
+              let presence = self.presences[currentUsername],
+              let statusDescription = presence.statusDescription,
+              !statusDescription.isEmpty else {
             return PresenceManager.showStatusMap[.online]!
         }
-        let status = (((presence.statusDescription?.isEmpty ?? true) ? PresenceManager.showStatusMap[.online]:presence.statusDescription )) ?? ""
-        return status
+        
+        if let state = State(rawValue: statusDescription),
+            let status = PresenceManager.showStatusMap[state] {
+            return status
+        }
+        return statusDescription
     }
     
     var presences:[String:EMPresence] = [:]

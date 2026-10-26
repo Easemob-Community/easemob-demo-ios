@@ -15,6 +15,9 @@ import EaseCallUIKit
 let userAvatarUpdated = "userAvatarUpdated"
 
 final class PersonalInfoViewController: UIViewController {
+    var signature = ""
+    var signatureDidChange: ((String) -> Void)?
+    private var signatureGeneration = 0
     private lazy var avatarEditor = UserAvatarEditor(presenter: self)
     private let account = saveIdentifier
     
@@ -23,7 +26,7 @@ final class PersonalInfoViewController: UIViewController {
         if let nickname = ChatUIKitContext.shared?.currentUser?.nickname {
             userId = nickname
         }
-        return [["title":"Avatar".localized(),"detail":ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""],["title":"Nickname".localized(),"detail":userId]]
+        return [["title":"Avatar".localized(),"detail":ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""],["title":"Nickname".localized(),"detail":userId],["title":"me_signature_title".localized(),"detail":self.signature]]
     }()
     
     private lazy var navigation: ChatNavigationBar = {
@@ -38,6 +41,7 @@ final class PersonalInfoViewController: UIViewController {
         super.viewDidLoad()
         self.view.addSubViews([self.navigation,self.infoList])
         self.infoList.reloadData()
+        self.fetchSignature()
         NotificationCenter.default.addObserver(self, selector: #selector(refreshAvatar), name: NSNotification.Name(userAvatarUpdated), object: nil)
         if let url = ChatUIKitContext.shared?.currentUser?.avatarURL,!url.isEmpty {
             self.navigation.avatarURL = url
@@ -55,6 +59,32 @@ final class PersonalInfoViewController: UIViewController {
 }
 
 extension PersonalInfoViewController {
+    private func fetchSignature() {
+        guard let userId = ChatUIKitContext.shared?.currentUserId, !userId.isEmpty else { return }
+        let generation = self.signatureGeneration
+        ChatClient.shared().userInfoManager?.fetchUserInfo(byId: [userId], type: [5]) { [weak self] infos, error in
+            DispatchQueue.main.async {
+                guard let self, self.account == saveIdentifier, self.signatureGeneration == generation,
+                      error == nil, let info = infos?[userId] else { return }
+                self.signature = info.sign ?? ""
+                self.infos[2]["detail"] = self.signature
+                self.infoList.reloadData()
+            }
+        }
+    }
+
+    private func editSignature() {
+        let controller = UserSignatureEditViewController(signature: self.signature) { [weak self] signature in
+            guard let self else { return }
+            self.signatureGeneration += 1
+            self.signature = signature
+            self.infos[2]["detail"] = signature
+            self.infoList.reloadData()
+            self.signatureDidChange?(signature)
+        }
+        self.navigationController?.pushViewController(controller, animated: true)
+    }
+
     @objc private func refreshAvatar() {
         guard self.account == saveIdentifier else { return }
         self.infos[0]["detail"] = ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""
@@ -94,6 +124,7 @@ extension PersonalInfoViewController: UITableViewDelegate,UITableViewDataSource 
             case "Avatar".localized():
                 self.avatarEditor.showActions()
             case "Nickname".localized(): self.editName()
+            case "me_signature_title".localized(): self.editSignature()
             default:
                 break
             }
@@ -142,6 +173,112 @@ extension PersonalInfoViewController: UITableViewDelegate,UITableViewDataSource 
         })
     }
     
+}
+
+final class UserSignatureEditViewController: UIViewController, UITextViewDelegate, EaseChatUIKit.ThemeSwitchProtocol {
+    private let account = saveIdentifier
+    private let maximumLength = 256
+    private let originalSignature: String
+    private let signatureDidSave: (String) -> Void
+    private var isSaving = false
+    private let container = UIView()
+    private let editor = CustomTextView()
+    private let countLabel = UILabel()
+    private lazy var navigation = ChatNavigationBar(textAlignment: .left, rightTitle: "Save".chat.localize)
+
+    init(signature: String, onSaved: @escaping (String) -> Void) {
+        self.originalSignature = signature
+        self.signatureDidSave = onSaved
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        self.navigation.title = "me_edit_signature".localized()
+        self.navigation.clickClosure = { [weak self] type, _ in
+            guard let self else { return }
+            if type == .back, !self.isSaving { self.navigationController?.popViewController(animated: true) }
+            if type == .rightTitle { self.save() }
+        }
+        self.editor.font = UIFont.theme.bodyLarge
+        self.editor.text = self.originalSignature
+        self.editor.placeholder = "me_signature_placeholder".localized()
+        self.editor.delegate = self
+        self.editor.accessibilityLabel = "me_signature_title".localized()
+        self.countLabel.font = UIFont.theme.bodyMedium
+        self.countLabel.textAlignment = .right
+        self.container.layer.cornerRadius = 8
+        self.container.addSubViews([self.editor, self.countLabel])
+        self.view.addSubViews([self.container, self.navigation])
+        EaseChatUIKit.Theme.registerSwitchThemeViews(view: self)
+        self.switchTheme(style: EaseChatUIKit.Theme.style)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        self.container.frame = CGRect(x: 16, y: self.navigation.frame.maxY + 16, width: self.view.bounds.width - 32, height: 180)
+        self.editor.frame = CGRect(x: 12, y: 8, width: self.container.bounds.width - 24, height: 132)
+        self.countLabel.frame = CGRect(x: 12, y: 146, width: self.container.bounds.width - 24, height: 22)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        self.editor.becomeFirstResponder()
+    }
+
+    func textViewDidChange(_ textView: UITextView) { self.updateCount() }
+
+    private func updateCount() {
+        let count = (self.editor.text ?? "").count
+        self.countLabel.text = "\(count)/\(self.maximumLength)"
+        self.countLabel.textColor = count > self.maximumLength
+            ? (EaseChatUIKit.Theme.style == .dark ? UIColor.theme.errorColor5 : UIColor.theme.errorColor6)
+            : (EaseChatUIKit.Theme.style == .dark ? UIColor.theme.neutralColor5 : UIColor.theme.neutralColor7)
+        self.navigation.rightItem.isEnabled = !self.isSaving && count <= self.maximumLength
+    }
+
+    private func save() {
+        guard !self.isSaving else { return }
+        let signature = self.editor.text ?? ""
+        guard signature.count <= self.maximumLength else {
+            self.showToast(toast: "Reach content character limit.".chat.localize)
+            return
+        }
+        guard self.account == saveIdentifier, !(ChatUIKitContext.shared?.currentUserId ?? "").isEmpty,
+              let manager = ChatClient.shared().userInfoManager else {
+            self.showToast(toast: "me_signature_update_failed".localized())
+            return
+        }
+        self.isSaving = true
+        self.editor.isEditable = false
+        self.updateCount()
+        manager.updateOwnUserInfo(signature, with: .sign) { [weak self] _, error in
+            DispatchQueue.main.async {
+                guard let self, self.account == saveIdentifier else { return }
+                self.isSaving = false
+                self.editor.isEditable = true
+                self.updateCount()
+                if let error {
+                    self.showToast(toast: error.errorDescription ?? "me_signature_update_failed".localized())
+                    return
+                }
+                self.signatureDidSave(signature)
+                self.view.endEditing(true)
+                self.navigationController?.popViewController(animated: true)
+            }
+        }
+    }
+
+    func switchTheme(style: EaseChatUIKit.ThemeStyle) {
+        self.view.backgroundColor = style == .dark ? UIColor.theme.neutralColor1 : UIColor.theme.neutralColor98
+        self.container.backgroundColor = style == .dark ? UIColor.theme.neutralColor3 : UIColor.theme.neutralColor95
+        self.editor.backgroundColor = .clear
+        self.editor.textColor = style == .dark ? UIColor.theme.neutralColor98 : UIColor.theme.neutralColor1
+        self.editor.tintColor = style == .dark ? UIColor.theme.primaryDarkColor : UIColor.theme.primaryLightColor
+        self.updateCount()
+    }
 }
 
 /// Shared by the profile header and the personal-info avatar row.

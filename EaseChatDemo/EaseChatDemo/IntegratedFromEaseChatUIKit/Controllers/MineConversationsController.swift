@@ -35,6 +35,10 @@ final class MineConversationsController: ConversationListController {
                 }
             }
         }
+        NotificationCenter.default.addObserver(forName: Notification.Name("cu_avatar_update_notification"), object: nil, queue: .main) { [weak self] notification in
+            guard let `self` = self else { return }
+            self.navigation.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL
+        }
     }
     
     override func navigationClick(type: ChatNavigationBarClickEvent, indexPath: IndexPath?) {

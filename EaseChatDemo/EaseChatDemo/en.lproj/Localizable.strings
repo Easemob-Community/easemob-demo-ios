@@ -156,6 +156,9 @@
 "me_logout" = "Log out";
 "me_delete_account" = "Delete account";
 "me_signature_placeholder" = "My signature";
+"me_signature_title" = "Signature";
+"me_edit_signature" = "Edit signature";
+"me_signature_update_failed" = "Could not update signature. Please try again.";
 "me_change_avatar" = "Change avatar";
 "me_copy_id" = "Copy ID";
 "me_avatar_updating" = "Updating avatar…";

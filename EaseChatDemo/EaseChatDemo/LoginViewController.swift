@@ -276,7 +276,7 @@ extension LoginViewController: UITextFieldDelegate {
                     let user = EaseChatProfile()
                     user.id = userId.lowercased()
                     self.login(user: user, token: chatToken)
-                    user.insert()
+//                    user.insert()
                 } else {
                     self.loadingView.stopAnimating()
                     self.showToast(toast: (error as? EasemobError)?.message ?? error?.localizedDescription ?? "PasswordError".localized())
@@ -302,7 +302,7 @@ extension LoginViewController: UITextFieldDelegate {
                         user.id = userId
                         user.avatarURL = (result?["avatarUrl"] as? String) ?? ""
                         self?.login(user: user, token: token)
-                        user.insert()
+//                        user.insert()
                     }
                 } else {
                     self?.loadingView.stopAnimating()
@@ -318,9 +318,9 @@ extension LoginViewController: UITextFieldDelegate {
         }
         self.loadCache()
         ChatUIKitClient.shared.login(user: user, token: token) { [weak self] error in
-            self?.loadingView.stopAnimating()
             if error == nil {
                 if let profiles = EaseChatProfile.select(where: "id = '\(user.id)'") as? [EaseChatProfile] {
+                    self?.loadingView.stopAnimating()
                     if profiles.first != nil {
                         if let profile = profiles.first {
                             (user as? EaseChatProfile)?.update()
@@ -328,19 +328,36 @@ extension LoginViewController: UITextFieldDelegate {
                             ChatUIKitContext.shared?.userCache?[profile.id] = profile
                         }
                     }
+                    self?.fillCache()
+                    self?.entryHome()
                 } else {
-                    ChatUIKitContext.shared?.currentUser = user
-                    ChatUIKitContext.shared?.userCache?[user.id] = user
-                    let profile = EaseChatProfile()
-                    profile.id = user.id
-                    profile.avatarURL = user.avatarURL
-                    profile.nickname = user.nickname
-                    profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                    profile.insert()
+                    ChatClient.shared().userInfoManager?.fetchUserInfo(byId: [user.id]) { [weak self] userInfos, error in
+                        Task { @MainActor [weak self] in
+                            self?.loadingView.stopAnimating()
+                            if error == nil, let userInfo = userInfos?[user.id] {
+                                user.nickname = userInfo.nickname ?? ""
+                                if let avatarUrl = userInfo.avatarUrl, !avatarUrl.isEmpty {
+                                    user.avatarURL = avatarUrl
+                                }
+                                user.remark = ChatClient.shared().contactManager?.getContact(user.id)?.remark ?? ""
+                                ChatUIKitContext.shared?.currentUser = user
+                                ChatUIKitContext.shared?.userCache?[user.id] = user
+                                let profile = EaseChatProfile()
+                                profile.id = user.id
+                                profile.avatarURL = user.avatarURL
+                                profile.nickname = user.nickname
+                                profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
+                                profile.insert()
+                                self?.fillCache()
+                                self?.entryHome()
+                            } else {
+                                self?.showToast(toast: error?.errorDescription ?? "")
+                            }
+                        }
+                    }
                 }
-                self?.fillCache()
-                self?.entryHome()
             } else {
+                self?.loadingView.stopAnimating()
                 self?.showToast(toast: error?.errorDescription ?? "")
             }
         }

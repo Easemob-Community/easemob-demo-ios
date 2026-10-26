@@ -52,7 +52,7 @@ import UIKit
     }
     
     func roundedRect(bounds: CGRect) -> CGPath {
-        let cornerRadius = self.towards == .left ? BubbleCornerRadius(topLeft: 12, topRight: 16, bottomLeft: 4, bottomRight: 16):BubbleCornerRadius(topLeft: 16, topRight: 12, bottomLeft: 16, bottomRight: 4)
+        let cornerRadius = self.towards == .left ? BubbleCornerRadius(topLeft: 8, topRight: 8, bottomLeft: 8, bottomRight: 8):BubbleCornerRadius(topLeft: 8, topRight: 8, bottomLeft: 8, bottomRight: 8)
         let minX = bounds.minX
         let minY = bounds.minY
         let maxX = bounds.maxX

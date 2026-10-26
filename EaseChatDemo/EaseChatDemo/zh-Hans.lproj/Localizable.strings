@@ -176,6 +176,9 @@
 "me_logout" = "退出登录";
 "me_delete_account" = "注销账户";
 "me_signature_placeholder" = "我的签名";
+"me_signature_title" = "个性签名";
+"me_edit_signature" = "修改签名";
+"me_signature_update_failed" = "签名更新失败，请重试";
 "me_change_avatar" = "修改头像";
 "me_copy_id" = "复制 ID";
 "me_avatar_updating" = "正在更新头像…";
