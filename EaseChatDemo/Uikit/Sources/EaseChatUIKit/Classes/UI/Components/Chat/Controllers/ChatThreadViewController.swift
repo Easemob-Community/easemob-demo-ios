@@ -618,7 +618,7 @@ extension ChatThreadViewController: MessageListDriverEventsListener {
         switch message.message.body.type {
         case .file,.video,.image:
             if let body = message.message.body as? ChatFileMessageBody {
-                self.filePath = body.localPath ?? ""
+                self.filePath = (body as? ChatImageMessageBody)?.resolvedLocalPath ?? body.localPath ?? ""
             }
             self.openFile()
         case .custom:

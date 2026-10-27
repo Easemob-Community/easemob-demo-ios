@@ -72,31 +72,18 @@ import FLAnimatedImage
     open override func refresh(entity: MessageEntity) {
         super.refresh(entity: entity)
         self.content.frame = CGRect(x: Appearance.chat.bubbleStyle == .withArrow ? self.bubbleWithArrow.frame.minX:self.bubbleMultiCorners.frame.minX, y: Appearance.chat.bubbleStyle == .withArrow ? self.bubbleWithArrow.frame.minY:self.bubbleMultiCorners.frame.minY, width: entity.bubbleSize.width, height: entity.bubbleSize.height)
-        if let body = (entity.message.body as? ChatImageMessageBody), body.isGif {
-            if entity.message.direction == .receive {
-                if let thumbnailLocalPath = body.thumbnailLocalPath, !thumbnailLocalPath.isEmpty, FileManager.default.fileExists(atPath: thumbnailLocalPath) {
-                    self.content.loadGif(from: thumbnailLocalPath)
-                } else {
-                    if (body.thumbnailDownloadStatus != .downloading) {
-                        ChatClient.shared().chatManager?.downloadMessageThumbnail(entity.message, progress: nil)
-                    }
-                }
-            } else {
-                if let path = body.thumbnailLocalPath, !path.isEmpty, FileManager.default.fileExists(atPath: path) {
-                    self.content.loadGif(from: path)
-                } else {
-                    if let localPath = body.localPath, !localPath.isEmpty, FileManager.default.fileExists(atPath: localPath) {
-                        self.content.loadGif(from: localPath)
-                    } else {
-                        if (body.thumbnailDownloadStatus != .downloading) {
-                            ChatClient.shared().chatManager?.downloadMessageThumbnail(entity.message, progress: nil)
-                        }
-                    }
-                }
+        if let body = entity.message.body as? ChatImageMessageBody, body.isGif {
+            if let path = body.resolvedLocalPath, !path.isEmpty, FileManager.default.fileExists(atPath: path) {
+                self.content.loadGif(from: path)
+            } else if let path = body.resolvedThumbnailLocalPath, !path.isEmpty, FileManager.default.fileExists(atPath: path) {
+                self.content.loadGif(from: path)
+            } else if body.thumbnailDownloadStatus != .downloading {
+                ChatClient.shared().chatManager?.downloadMessageThumbnail(entity.message, progress: nil)
             }
         }
     }
     
+
     open override func switchTheme(style: ThemeStyle) {
         super.switchTheme(style: style)
         self.content.backgroundColor = style == .dark ? UIColor.theme.neutralColor3:UIColor.theme.neutralColor9

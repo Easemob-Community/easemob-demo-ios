@@ -3,6 +3,14 @@ import UIKit
 
 @objc open class ConversationListCell: UITableViewCell {
 
+    private struct AvatarIdentity: Equatable {
+        let account: String
+        let conversationId: String
+        let type: ChatUserProfileProviderType
+    }
+    private var avatarIdentity: AvatarIdentity?
+    private var lastAvatarURL = ""
+
     public private(set) lazy var avatar: ImageView = {
         self.createAvatar()
     }()
@@ -97,6 +105,28 @@ import UIKit
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+
+    open override func prepareForReuse() {
+        super.prepareForReuse()
+        self.avatar.cancelPendingImageLoad()
+        // Keep the identity with the image. refresh only reuses it for the same conversation.
+    }
+
+    private func refreshAvatar(info: ConversationInfo) {
+        let identity = AvatarIdentity(account: ChatUIKitContext.shared?.currentUserId ?? ChatClient.shared().currentUsername ?? "",
+                                      conversationId: info.id, type: info.type)
+        let sameConversation = !info.id.isEmpty && self.avatarIdentity == identity
+        if !sameConversation {
+            self.lastAvatarURL = ""
+            self.avatar.cancelPendingImageLoad()
+        }
+        self.avatarIdentity = info.id.isEmpty ? nil : identity
+        let url = info.avatarURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !url.isEmpty { self.lastAvatarURL = url }
+        let placeholder = info.type == .chat ? Appearance.conversation.singlePlaceHolder : Appearance.conversation.groupPlaceHolder
+        // Missing profile data is not an avatar removal. Never borrow an image from another identity.
+        self.avatar.image(with: self.lastAvatarURL, placeHolder: sameConversation ? (self.avatar.image ?? placeholder) : placeholder)
+    }
     
     @objc(refreshWithInfo:)
     open func refresh(info: ConversationInfo) {
@@ -106,7 +136,7 @@ import UIKit
         }
         self.contentView.backgroundColor =  contentColor
         self.avatar.cornerRadius(Appearance.avatarRadius)
-        self.avatar.image(with: info.avatarURL, placeHolder: info.type == .chat ? Appearance.conversation.singlePlaceHolder:Appearance.conversation.groupPlaceHolder)
+        self.refreshAvatar(info: info)
         var nickName = info.id
         if !info.nickname.isEmpty {
             nickName = info.nickname

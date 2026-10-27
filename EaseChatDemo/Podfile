@@ -13,7 +13,7 @@ target 'EaseChatDemo' do
   pod 'KakaJSON', '~> 1.1.2'
   pod 'SwiftFFDBHotFix'
   pod 'FMDB','2.7.11'
-  pod 'HyphenateChat'
+  pod 'HyphenateChat', '>= 5.1.0'
 
 #  #如果HyphenateChat使用4.11.0版本需要下面pre_install这个脚本，否则不需要
 #  pre_install do |installer|

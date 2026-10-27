@@ -33,7 +33,7 @@ final class MeViewController: UIViewController {
     private var customStatus = ""
     @UserDefault("EaseChatDemoUserPhone", defaultValue: "") private var phone
     private lazy var avatarEditor = UserAvatarEditor(presenter: self)
-    private lazy var header = MeProfileHeader(frame: CGRect(x: 0, y: 0, width: self.view.bounds.width, height: 142))
+    private lazy var header = MeProfileHeader(frame: CGRect(x: 0, y: 0, width: self.view.bounds.width, height: 104))
     private let logoutButton = UIButton(type: .system)
     private let deregisterButton = UIButton(type: .system)
     private lazy var accountFooter: UIView = {
@@ -50,11 +50,15 @@ final class MeViewController: UIViewController {
         return footer
     }()
     private lazy var menuList: UITableView = {
-        let list = UITableView(frame: .zero, style: .plain)
+        // Grouped section headers scroll with their rows instead of pinning to the top.
+        let list = UITableView(frame: .zero, style: .grouped)
         list.backgroundColor = .clear
         list.separatorStyle = .none
         list.rowHeight = 54
         list.sectionHeaderTopPadding = 0
+        list.sectionFooterHeight = .leastNormalMagnitude
+        list.estimatedSectionHeaderHeight = 0
+        list.estimatedSectionFooterHeight = 0
         list.contentInsetAdjustmentBehavior = .never
         list.tableHeaderView = self.header
         list.tableFooterView = self.accountFooter
@@ -155,11 +159,13 @@ final class MeViewController: UIViewController {
 extension MeViewController: UITableViewDelegate, UITableViewDataSource {
     func numberOfSections(in tableView: UITableView) -> Int { self.menusData.count }
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { self.menusData[section].count }
-    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { 44 }
+    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { 28 }
+    func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat { .leastNormalMagnitude }
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let header = UIView()
-        header.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor2 : UIColor.theme.neutralColor95
-        let label = UILabel(frame: CGRect(x: 16, y: 20, width: tableView.bounds.width - 32, height: 20))
+        header.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor0 : UIColor.theme.neutralColor95
+        let label = UILabel(frame: CGRect(x: 16, y: 4, width: tableView.bounds.width - 32, height: 20))
+        label.autoresizingMask = [.flexibleWidth]
         label.font = UIFont.theme.bodyMedium
         label.textColor = Theme.style == .dark ? UIColor.theme.neutralColor6 : UIColor.theme.neutralColor5
         label.text = (section == 0 ? "About" : "Setting").localized()
@@ -435,14 +441,14 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
     }
     override func layoutSubviews() {
         super.layoutSubviews()
-        self.avatar.frame = CGRect(x: 16, y: 36, width: 72, height: 72)
+        self.avatar.frame = CGRect(x: 16, y: 16, width: 72, height: 72)
         self.avatar.cornerRadius(Appearance.avatarRadius)
         self.avatarButton.frame = self.avatar.frame
-        self.nickname.frame = CGRect(x: 100, y: 38, width: self.bounds.width - 116, height: 26)
-        self.signature.frame = CGRect(x: 100, y: 68, width: self.bounds.width - 116, height: 20)
-        self.profileButton.frame = CGRect(x: 96, y: 32, width: self.bounds.width - 112, height: 32)
-        self.signatureButton.frame = CGRect(x: 96, y: 64, width: self.bounds.width - 112, height: 24)
-        self.identifier.frame = CGRect(x: 100, y: 88, width: self.bounds.width - 116, height: 24)
+        self.nickname.frame = CGRect(x: 100, y: 18, width: self.bounds.width - 116, height: 26)
+        self.signature.frame = CGRect(x: 100, y: 48, width: self.bounds.width - 116, height: 20)
+        self.profileButton.frame = CGRect(x: 96, y: 12, width: self.bounds.width - 112, height: 32)
+        self.signatureButton.frame = CGRect(x: 96, y: 44, width: self.bounds.width - 112, height: 24)
+        self.identifier.frame = CGRect(x: 100, y: 68, width: self.bounds.width - 116, height: 24)
         self.status.frame = CGRect(x: self.avatar.frame.maxX - 20, y: self.avatar.frame.maxY - 20, width: 20, height: 20)
     }
     func showStatus(_ state: PresenceManager.State) {

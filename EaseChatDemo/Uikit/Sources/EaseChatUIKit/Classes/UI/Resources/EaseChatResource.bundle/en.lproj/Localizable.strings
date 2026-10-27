@@ -248,3 +248,15 @@
 "group_management_transfer_confirm" = "Transfer group ownership to “%@”?";
 "group_management_transfer_success" = "Group ownership transferred";
 "group_details_search_history" = "Search chat history";
+"group_receipt_counts" = "%ld read · %ld unread";
+"group_receipt_read_count" = "%ld read";
+
+"group_receipt_details" = "Message details";
+"group_receipt_unread_count" = "%ld unread";
+"group_receipt_unread" = "Unread";
+"group_receipt_retry" = "Retry";
+"group_receipt_load_failed" = "Could not load members. Please retry.";
+"group_receipt_changed_retry" = "Read receipts changed. Please refresh.";
+"group_receipt_no_read_members" = "No members have read this message";
+"group_receipt_no_unread_members" = "No unread members to display";
+"group_receipt_partial_roster" = "Only current group members are shown. Historical membership may be incomplete.";

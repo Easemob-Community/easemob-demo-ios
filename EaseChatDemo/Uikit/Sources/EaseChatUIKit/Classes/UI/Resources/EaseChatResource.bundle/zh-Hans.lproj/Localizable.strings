@@ -250,3 +250,15 @@
 "group_management_transfer_confirm" = "确认将群主转让给“%@”？";
 "group_management_transfer_success" = "群主已转让";
 "group_details_search_history" = "查找聊天记录";
+"group_receipt_counts" = "%ld人已读 · %ld人未读";
+"group_receipt_read_count" = "%ld人已读";
+
+"group_receipt_details" = "消息详情";
+"group_receipt_unread_count" = "%ld人未读";
+"group_receipt_unread" = "未读";
+"group_receipt_retry" = "重试";
+"group_receipt_load_failed" = "成员信息加载失败，请重试";
+"group_receipt_changed_retry" = "已读名单已变化，请刷新";
+"group_receipt_no_read_members" = "暂无已读成员";
+"group_receipt_no_unread_members" = "暂无可显示的未读成员";
+"group_receipt_partial_roster" = "仅显示当前仍在群内的成员，历史名单可能不完整";

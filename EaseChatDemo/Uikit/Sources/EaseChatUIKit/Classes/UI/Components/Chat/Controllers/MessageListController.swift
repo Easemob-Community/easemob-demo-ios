@@ -184,8 +184,23 @@ public enum PHPickerMediaResolver {
         self.processFollowInputAttachmentAction()
     }
     
+    open override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        self.refreshVisibleReadReceipts()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshVisibleReadReceipts), name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
+    @objc private func refreshVisibleReadReceipts() {
+        let entities = (self.messageContainer.messageList.indexPathsForVisibleRows ?? []).compactMap {
+            self.messageContainer.messages[safe: $0.row]
+        }
+        self.viewModel.resumeReadReceipts(visibleMessages: entities)
+    }
+
     open override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        self.viewModel.receiptTrackingActive = false
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
         AudioTools.shared.stopPlaying()
         self.messageContainer.messages.forEach { $0.playing = false }
         if let index = self.messageContainer.messages.firstIndex(where: { $0.playing }) {
@@ -491,6 +506,17 @@ extension MessageListController: MessageListDriverEventsListener {
             self.enterTopic(threadId: thread.threadId, message: entity.message)
         }
     }
+
+    public func onMessageReadReceiptClicked(entity: MessageEntity) {
+        guard entity.showsGroupReadReceipt, entity.state != .sending, entity.state != .failure,
+              entity.groupUnreadCount != 0 else { return }
+        let controller = GroupMessageReceiptController(entity: entity)
+        controller.readCountChanged = { [weak self] count in
+            self?.messageContainer.updateGroupReadReceipt(messageId: entity.message.messageId, readCount: count)
+        }
+        controller.hidesBottomBarWhenPushed = true
+        self.navigationController?.pushViewController(controller, animated: true)
+    }
     
     @objc open func enterTopic(threadId: String,message: ChatMessage) {
         ChatClient.shared().threadManager?.joinChatThread(threadId, completion: { chatThread, error in
@@ -789,7 +815,7 @@ extension MessageListController: MessageListDriverEventsListener {
         switch message.message.body.type {
         case .file,.video,.image:
             if let body = message.message.body as? ChatFileMessageBody {
-                self.filePath = body.localPath ?? ""
+                self.filePath = (body as? ChatImageMessageBody)?.resolvedLocalPath ?? body.localPath ?? ""
             }
             self.openFile()
         case .custom:

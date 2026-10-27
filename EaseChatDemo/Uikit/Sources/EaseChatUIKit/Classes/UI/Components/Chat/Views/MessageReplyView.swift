@@ -92,8 +92,8 @@ import UIKit
         }
         if let body = message.body as? ChatImageMessageBody {
             if message.from == ChatUIKitContext.shared?.currentUserId ?? "" {
-                if FileManager.default.fileExists(atPath: body.localPath) {
-                    self.replyIcon.image = UIImage(contentsOfFile: body.localPath)
+                if let path = body.resolvedLocalPath, FileManager.default.fileExists(atPath: path) {
+                    self.replyIcon.image = UIImage(contentsOfFile: path)
                 } else {
                     self.replyIcon.image(with: body.remotePath, placeHolder: Theme.style == .dark ? self.icon(message: message)?.withTintColor(UIColor.theme.neutralColor7):self.icon(message: message)?.withTintColor(UIColor.theme.neutralColor5))
                 }

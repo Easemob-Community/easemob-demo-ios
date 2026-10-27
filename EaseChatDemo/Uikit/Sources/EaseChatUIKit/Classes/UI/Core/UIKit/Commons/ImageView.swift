@@ -36,6 +36,15 @@ import Combine
         self.loadImage(url: url, placeholder: placeHolder, completion: loadFinished)
     }
 
+    /// Stop callbacks while a cell is in the reuse pool, retaining its displayed/cached image.
+    @MainActor func cancelPendingImageLoad() {
+        self.requestID = UUID()
+        self.imageRequest?.cancel()
+        self.imageRequest = nil
+        self.completions.removeAll()
+        self.isLoading = false
+    }
+
     private func loadImage(url: String, placeholder: UIImage?, completion: ((UIImage?) -> Void)?) {
         let imageURL = Self.remoteURL(from: url)
         if let imageURL = imageURL, imageURL == self.representedURL {
@@ -52,12 +61,8 @@ import Combine
         }
 
         // Invalidate before cancelling: a reused view must never receive its previous image.
-        self.requestID = UUID()
-        self.imageRequest?.cancel()
-        self.imageRequest = nil
-        self.completions.removeAll()
+        self.cancelPendingImageLoad()
         self.loadedImage = nil
-        self.isLoading = false
         self.representedURL = imageURL
         guard let imageURL = imageURL else {
             self.display(placeholder)

@@ -140,6 +140,8 @@
 "style2" = "样式2";
 "style_preview" = "样式预览";
 "fraud_alert" = "请勿轻信转账、汇款、中奖等信息，谨慎接听陌生来电，谨防诈骗。发现可疑情况请立即举报。";
+"fraud_alert_title" = "本 Demo 仅供体验 | 数据每日 00:00 清除";
+"fraud_alert_close" = "关闭警示";
 "Click report" = "点我举报";
 "and the call duration is " = "通话时长为";
 "The other party busy" = "对方忙碌";
@@ -185,3 +187,4 @@
 "me_avatar_updated" = "头像已更新";
 "me_avatar_update_failed" = "头像更新失败，请重试";
 "me_avatar_debug_unsupported" = "调试模式暂不支持上传头像";
+"chat_demo_watermark" = "环信 Demo　仅供参考，谨防诈骗！";

@@ -159,6 +159,43 @@ public let urlPreviewImageHeight = CGFloat(137)
 
     /// /// Message state.
     public var state: ChatMessageStatus = .sending
+
+    /// Server callbacks can arrive before a separately held SDK message object is refreshed.
+    public var groupReadCount = 0
+
+    public var showsGroupReadReceipt: Bool {
+        !self.historyMessage && !self.isAlertMessage && self.message.direction == .send
+            && self.message.supportsGroupReadReceipt && self.message.isNeedReadReceipt
+    }
+
+    public var groupReadReceiptText: String {
+        if let unread = self.groupUnreadCount {
+            return String(format: "group_receipt_counts".chat.localize, self.effectiveGroupReadCount, unread)
+        }
+        // Older messages do not have a reliable recipient snapshot.
+        return String(format: "group_receipt_read_count".chat.localize, self.effectiveGroupReadCount)
+    }
+
+    public var effectiveGroupReadCount: Int {
+        max(self.groupReadCount, Int(self.message.groupReadReceiptCount), 0)
+    }
+
+    public var groupReceiptRecipientCount: Int? {
+        let groupId = self.message.conversationId
+        guard self.message.chatType == .groupChat, !groupId.isEmpty else { return nil }
+        if let total = self.message.ext?[groupReceiptRecipientCountKey] as? Int, total >= 0 { return total }
+        if let recipients = self.message.receiverList, !recipients.isEmpty {
+            return Set(recipients).subtracting([self.message.from]).count
+        }
+        // A zero SDK count means group details have not been loaded, not that everyone has read.
+        let occupants = ChatGroup(id: groupId)?.occupantsCount ?? 0
+        return occupants > 0 ? Int(occupants) - 1 : nil
+    }
+
+    public var groupUnreadCount: Int? {
+        guard let total = self.groupReceiptRecipientCount else { return nil }
+        return max(0, total - self.effectiveGroupReadCount)
+    }
     
     /// Whether audio message playing or not.
     public var playing = false
@@ -514,10 +551,10 @@ public let urlPreviewImageHeight = CGFloat(137)
         if size == .zero {
             if let body = self.message.body as? ChatImageMessageBody {
                 if size == .zero {
-                    if let path = body.thumbnailLocalPath,FileManager.default.fileExists(atPath: path) {
+                    if let path = body.resolvedThumbnailLocalPath,FileManager.default.fileExists(atPath: path) {
                         size = UIImage(contentsOfFile: path)?.size ?? .zero
                     } else {
-                        if let localPath = body.localPath,FileManager.default.fileExists(atPath: localPath) {
+                        if let localPath = body.resolvedLocalPath,FileManager.default.fileExists(atPath: localPath) {
                             size = UIImage(contentsOfFile: localPath)?.size ?? .zero
                         }
                     }

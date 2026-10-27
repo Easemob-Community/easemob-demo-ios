@@ -221,7 +221,8 @@ extension ForwardTargetViewController: UITableViewDelegate,UITableViewDataSource
             }
             let message =  ChatMessage(conversationID: conversationId, body: body, ext: nil)
             message.chatType = self.index == 0 ? .chat:.groupChat
-            ChatClient.shared().chatManager?.send(message, progress: nil, completion: { [weak self] successMessage, error in
+            message.isNeedReadReceipt = true
+            ChatServiceImplement(to: conversationId).send(message: message, completion: { [weak self] error, successMessage in
                 guard let `self` = self else { return }
                 if error == nil {
                     self.forwarded = true

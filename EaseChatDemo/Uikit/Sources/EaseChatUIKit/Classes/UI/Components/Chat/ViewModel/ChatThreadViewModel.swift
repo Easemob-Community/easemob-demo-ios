@@ -521,7 +521,9 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
         let bodyType = message.message.body.type
         
         if bodyType == .voice || bodyType == .file || bodyType == .video || bodyType == .combine || bodyType == .image {
-            if !FileManager.default.fileExists(atPath: (message.message.body as? ChatFileMessageBody)?.localPath ?? "") {
+            let localPath = (message.message.body as? ChatImageMessageBody)?.resolvedLocalPath
+                ?? (message.message.body as? ChatFileMessageBody)?.localPath ?? ""
+            if !FileManager.default.fileExists(atPath: localPath) {
                 self.downloadMessageAttachment(message: message)
             } else {
                 if bodyType != .voice {
@@ -581,6 +583,16 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
     }
     
     @objc open func downloadMessageAttachment(message: MessageEntity) {
+        do {
+            try MessageAttachmentFiles.prepareDownload(for: message.message)
+        } catch {
+            let failure = error as NSError
+            consoleLogInfo("Attachment local path preparation failed, messageId:\(message.message.messageId) domain:\(failure.domain) code:\(failure.code) error:\(failure.localizedDescription)", type: .error)
+            return
+        }
+        if let body = message.message.body as? ChatFileMessageBody {
+            consoleLogInfo("Attachment download start, messageId:\(message.message.messageId) localPath:\(body.localPath ?? "") parentWritable:\(FileManager.default.isWritableFile(atPath: ((body.localPath ?? "") as NSString).deletingLastPathComponent))", type: .debug)
+        }
         for handler in self.handlers.allObjects {
             handler.onMessageAttachmentLoading(loading: true)
         }
@@ -590,6 +602,7 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
                 handler.onMessageAttachmentLoading(loading: false)
             }
             if error == nil,let attachment = attachMessage {
+                message.message = attachment
                 if attachment.body.type == .video {
                     self.cacheFrame(attachMessage: message.message)
                 }
@@ -600,35 +613,21 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
                 if message.message.body.type == .image {
                     self.cacheImage(message: message.message)
                 }
-                message.message = attachment
                 for handler in self.handlers.allObjects {
                     handler.onMessageBubbleClicked(message: message)
                 }
             } else {
-                consoleLogInfo("onMessageReplyClicked download error:\(error?.errorDescription ?? "")", type: .error)
+                consoleLogInfo("Attachment download failed, messageId:\(message.message.messageId) code:\(error.map { String($0.code.rawValue) } ?? "nil") description:\(error?.errorDescription ?? "") localPath:\((message.message.body as? ChatFileMessageBody)?.localPath ?? "")", type: .error)
             }
         })
     }
     
     @objc open func cacheImage(message: ChatMessage) {
-        if let body = (message.body as? ChatImageMessageBody) {
-            do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: body.localPath))
-                try FileManager.default.removeItem(atPath: body.localPath)
-                let image = UIImage(data: data)
-                if image?.imageOrientation == .up {
-                    body.localPath += ".jpeg"
-                } else {
-                    body.localPath += ".png"
-                }
-                try data.write(to: URL(fileURLWithPath: body.localPath))
-                ChatClient.shared().chatManager?.update(message)
-            } catch {
-                consoleLogInfo("download image then rewrite format path load error:\(error.localizedDescription)", type: .error)
-            }
-        }
+        // The SDK already saved the original image. Renaming by UIImage orientation neither
+        // converts its encoding nor safely handles GIFs or files shared by other messages.
+        // Keep the SDK path and original bytes intact.
     }
-    
+
     @objc open func cacheFrame(attachMessage: ChatMessage) {
         if let body = attachMessage.body as? ChatVideoMessageBody {
             if let path = body.localPath {

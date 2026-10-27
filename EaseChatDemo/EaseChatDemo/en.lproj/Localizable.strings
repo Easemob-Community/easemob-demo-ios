@@ -132,7 +132,9 @@
 "style2" = "Style 2";
 "style_preview" = "Style Preview";
 
-"fraud_alert" = "Please be cautious of frauds asking for money or verification codes.";
+"fraud_alert" = "Do not trust requests for transfers or prize claims. Be cautious of unknown callers and report suspicious activity immediately.";
+"fraud_alert_title" = "Demo only | Data cleared daily at 00:00";
+"fraud_alert_close" = "Dismiss warning";
 "Click report" = "Click to report";
 "singleAudio" = "Audio call";
 "singleVideo" = "Video call";
@@ -165,3 +167,4 @@
 "me_avatar_updated" = "Avatar updated";
 "me_avatar_update_failed" = "Could not update avatar. Please try again.";
 "me_avatar_debug_unsupported" = "Avatar uploads are unavailable in debug mode.";
+"chat_demo_watermark" = "Easemob Demo · For reference only · Beware of scams!";

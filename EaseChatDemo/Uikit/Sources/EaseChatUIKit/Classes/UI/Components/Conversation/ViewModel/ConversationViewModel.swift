@@ -528,7 +528,12 @@ extension ConversationViewModel: MultiDeviceListener {
             conversation.remark = profile?.remark ?? ""
             conversation.avatarURL = profile?.avatarURL ?? ""
             conversation.doNotDisturb = $0.disturbType != .all
-            
+            if let conversationName = $0.conversationName(), !conversationName.isEmpty {
+                conversation.nickname = conversationName
+            }
+            if let conversationAvatarUrl = $0.conversationAvatar(), !conversationAvatarUrl.isEmpty {
+                conversation.avatarURL = conversationAvatarUrl
+            }
             _ = conversation.showContent
             return conversation
         }

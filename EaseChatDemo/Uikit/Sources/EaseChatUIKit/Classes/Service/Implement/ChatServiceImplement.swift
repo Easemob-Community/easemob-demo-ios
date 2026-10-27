@@ -7,8 +7,26 @@
 
 import UIKit
 
+/// Recipient count captured when sending, rather than the group's current size.
+/// Custom message extension shared by sending clients on all platforms: an integer excluding the sender.
+/// Broadcast messages use the group size minus one; targeted messages use unique recipient IDs excluding the sender.
+/// Missing values fall back to explicit recipients or the current group size; SDK read counts remain independent.
+public let groupReceiptRecipientCountKey = "ease_chat_uikit_receipt_recipient_count"
+
+extension ChatMessage {
+    var supportsGroupReadReceipt: Bool {
+        guard self.chatType == .groupChat, !self.isChatThreadMessage, self.body.type != .cmd else { return false }
+        if let body = self.body as? ChatCustomMessageBody {
+            return body.event == EaseChatUIKit_user_card_message
+        }
+        return true
+    }
+}
+
 @objcMembers public class ChatServiceImplement: NSObject {
     private var responseDelegates: NSHashTable<ChatResponseListener> = NSHashTable<ChatResponseListener>.weakObjects()
+    private var sendingReadReceipts = Set<String>()
+    private var sentReadReceipts = Set<String>()
     
     public private(set) var to = ""
 
@@ -91,11 +109,37 @@ extension ChatServiceImplement: ChatService {
     }
     
     public func send(message: ChatMessage, completion: @escaping (ChatError?, ChatMessage?) -> Void) {
-        let message = message
-        ChatClient.shared().chatManager?.send(message, progress: nil, completion: { message, error in
-//            self?.pushSendNotification(message: message)
-            completion(error,message)
-        })
+        let send: () -> Void = {
+            ChatClient.shared().chatManager?.send(message, progress: nil) { message, error in
+                completion(error, message)
+            }
+        }
+        guard message.supportsGroupReadReceipt, message.isNeedReadReceipt else { send(); return }
+        var ext = message.ext ?? [:]
+        ext.removeValue(forKey: groupReceiptRecipientCountKey)
+        message.ext = ext
+        let setRecipientCount: (Int) -> Void = { count in
+            // The SDK normalizes an empty extension to nil, so optional subscript writes are lost.
+            var ext = message.ext ?? [:]
+            ext[groupReceiptRecipientCountKey] = count
+            message.ext = ext
+        }
+        if let recipients = message.receiverList, !recipients.isEmpty {
+            setRecipientCount(Set(recipients).subtracting([message.from]).count)
+            send()
+        } else if let manager = ChatClient.shared().groupManager {
+            let account = ChatClient.shared().currentUsername
+            manager.getGroupSpecificationFromServer(withId: message.conversationId) { group, error in
+                guard account == ChatClient.shared().currentUsername else { return }
+                if error == nil, let group = group, group.occupantsCount > 0 {
+                    setRecipientCount(Int(group.occupantsCount) - 1)
+                }
+                // A failed group lookup must not prevent sending or invent an unread total.
+                send()
+            }
+        } else {
+            send()
+        }
     }
     
     private func pushSendNotification(message: ChatMessage?) {
@@ -114,15 +158,23 @@ extension ChatServiceImplement: ChatService {
     }
     
     public func markMessageAsRead(messageId: String) {
-        if let message = ChatClient.shared().chatManager?.getMessageWithMessageId(messageId) {
-            ChatClient.shared().chatManager?.sendMessageReadReceipts([message]) { error in
-                
-                if error != nil {
-                    consoleLogInfo("sendMessageReadReceipts error:\(error?.errorDescription ?? "")", type: .error)
+        guard let manager = ChatClient.shared().chatManager,
+              let message = manager.getMessageWithMessageId(messageId),
+              message.conversationId == self.to, message.direction == .receive,
+              message.chatType == .chat || message.chatType == .groupChat,
+              message.isNeedReadReceipt, !message.isPeerRead,
+              !self.sendingReadReceipts.contains(messageId), !self.sentReadReceipts.contains(messageId) else { return }
+        self.sendingReadReceipts.insert(messageId)
+        manager.sendMessageReadReceipts([message]) { [weak self] error in
+            DispatchQueue.main.async {
+                self?.sendingReadReceipts.remove(messageId)
+                if let error = error {
+                    consoleLogInfo("sendMessageReadReceipts error:\(error.errorDescription ?? "")", type: .error)
+                } else {
+                    self?.sentReadReceipts.insert(messageId)
                 }
             }
         }
-        
     }
     
     public func markAllMessagesAsRead() {

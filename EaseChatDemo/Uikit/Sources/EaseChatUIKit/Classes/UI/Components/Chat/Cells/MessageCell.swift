@@ -44,6 +44,7 @@ public let checkBoxTag = 189
     case status
     case checkbox
     case cell
+    case receipt
 }
 
 @objc public enum MessageContentDisplayStyle: UInt {
@@ -135,6 +136,20 @@ let message_bubble_space = CGFloat(1)
     public private(set) lazy var status: UIImageView = {
         self.statusView()
     }()
+
+    public private(set) lazy var groupReadReceipt: UILabel = {
+        let label = UILabel(frame: .zero).font(.systemFont(ofSize: 10)).backgroundColor(.clear)
+        label.textAlignment = .center
+        label.layer.borderWidth = 1
+        return label
+    }()
+
+    public private(set) lazy var groupReadReceiptButton: UIButton = {
+        let button = UIButton(type: .custom)
+        button.addSubview(self.groupReadReceipt)
+        button.addTarget(self, action: #selector(openReadReceipt), for: .touchUpInside)
+        return button
+    }()
     
     @objc open func statusView() -> UIImageView {
         UIImageView(frame: .zero).backgroundColor(.clear).tag(statusTag)
@@ -218,6 +233,7 @@ let message_bubble_space = CGFloat(1)
             self.contentView.addSubview(self.messageDate)
         }
         self.contentView.addSubview(self.status)
+        self.contentView.addSubview(self.groupReadReceiptButton)
         self.addGestureTo(view: self.status, target: self)
         Theme.registerSwitchThemeViews(view: self)
         self.replyContent.isHidden = true
@@ -346,6 +362,7 @@ let message_bubble_space = CGFloat(1)
         //date
         let date = entity.message.showDetailDate
         self.messageDate.text = date
+        self.refreshGroupReadReceipt()
         
     }
     
@@ -426,6 +443,7 @@ let message_bubble_space = CGFloat(1)
     
     
     @objc func updateMessageStatus(entity: MessageEntity) {
+        self.entity = entity
         self.status.image = entity.stateImage
         if entity.state != .sending {
             self.status.layer.removeAllAnimations()
@@ -433,10 +451,43 @@ let message_bubble_space = CGFloat(1)
         } else {
             self.addRotation()
         }
+        self.refreshGroupReadReceipt()
+    }
+
+    func refreshGroupReadReceipt() {
+        let hidden = !self.entity.showsGroupReadReceipt || self.editMode
+            || self.entity.state == .sending || self.entity.state == .failure
+        self.groupReadReceiptButton.isHidden = hidden
+        self.groupReadReceipt.isHidden = hidden
+        self.status.isHidden = !hidden || self.entity.message.direction == .receive
+        let allRead = self.entity.groupUnreadCount == 0
+        let readCount = self.entity.effectiveGroupReadCount
+        self.groupReadReceipt.text = allRead ? "✓" : (readCount > 0 ? String(readCount) : nil)
+        self.groupReadReceiptButton.isEnabled = !hidden && !allRead
+        let color = allRead ? (Theme.style == .dark ? UIColor.theme.neutralColor6 : UIColor.theme.neutralColor5)
+            : (Theme.style == .dark ? UIColor.theme.primaryColor6 : UIColor.theme.primaryColor5)
+        self.groupReadReceipt.textColor = color
+        self.groupReadReceipt.layer.borderColor = color.cgColor
+        let width = max(14, min(38, self.groupReadReceipt.intrinsicContentSize.width + 5))
+        let bubbleFrame = Appearance.chat.bubbleStyle == .withArrow ? self.bubbleWithArrow.frame : self.bubbleMultiCorners.frame
+        // Keep the visible marker 4 pt above the bubble bottom, independent of accessories below it.
+        let markerCenterY = bubbleFrame.maxY - 4 - 7
+        self.groupReadReceiptButton.frame = CGRect(x: self.status.frame.midX - 22, y: markerCenterY - 22, width: 44, height: 44)
+        self.groupReadReceipt.frame = CGRect(x: (44 - width) / 2, y: 15, width: width, height: 14)
+        self.groupReadReceipt.layer.cornerRadius = 7
+        self.groupReadReceiptButton.accessibilityLabel = "group_receipt_details".chat.localize
+        self.groupReadReceiptButton.accessibilityValue = self.entity.groupReadReceiptText
+    }
+
+    @objc private func openReadReceipt() {
+        guard !self.editMode, !self.groupReadReceiptButton.isHidden,
+              self.groupReadReceiptButton.isEnabled, self.entity.groupUnreadCount != 0 else { return }
+        self.clickAction?(.receipt, self.entity)
     }
     
     open func renderCheck(entity: MessageEntity) {
         self.checkbox.isHidden = !self.editMode
+        self.refreshGroupReadReceipt()
         
         if !self.checkbox.isHidden {
             self.checkbox.image = UIImage(chatNamed: entity.selected ? "select":"unselect")
@@ -464,6 +515,7 @@ extension MessageCell: ThemeSwitchProtocol {
         self.nickName.textColor = style == .dark ? UIColor.theme.neutralSpecialColor6:UIColor.theme.neutralSpecialColor5
         self.messageDate.textColor = style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor7
         self.topicView.backgroundColor = style == .dark ? UIColor.theme.neutralColor2:UIColor.theme.neutralColor95
+        self.refreshGroupReadReceipt()
     }
 }
 

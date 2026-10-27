@@ -62,6 +62,8 @@ public let MessageInputBarHeight = CGFloat(52)
     /// Message visible on scroll in screen
     /// - Parameter entity: ``MessageEntity``
     func onMessageVisible(entity: MessageEntity)
+
+    @objc optional func onMessageReadReceiptClicked(entity: MessageEntity)
     
     /// Message topic view clicked.
     /// - Parameter entity: ``MessageEntity``
@@ -128,6 +130,9 @@ public let MessageInputBarHeight = CGFloat(52)
     /// - Parameter message: ``ChatMessage``
     /// - Parameter status: ``ChatMessageStatus``
     func updateMessageStatus(message: ChatMessage,status: ChatMessageStatus)
+
+    @objc optional func updateGroupReadReceipt(messageId: String, readCount: Int)
+    @objc optional func refreshGroupReadReceipts()
     
     /// Update status on message attachment state changed.
     /// - Parameters:
@@ -654,6 +659,10 @@ extension MessageListView: UITableViewDelegate,UITableViewDataSource {
             return
         }
         switch area {
+        case .receipt:
+            for handler in self.eventHandlers.allObjects {
+                handler.onMessageReadReceiptClicked?(entity: entity)
+            }
         case .avatar:
             if ComponentViewsActionHooker.shared.chat.avatarClicked != nil {
                 if let user = entity.message.user {
@@ -1086,6 +1095,20 @@ extension MessageListView: IMessageListViewDriver {
             }
         }
     }
+
+    public func updateGroupReadReceipt(messageId: String, readCount: Int) {
+        guard let index = self.messages.firstIndex(where: { !$0.isTimeDivider && $0.message.messageId == messageId }) else { return }
+        let entity = self.messages[index]
+        entity.groupReadCount = max(entity.groupReadCount, readCount)
+        // Update only the receipt label, keeping the bubble, avatar and scroll position intact.
+        (self.messageList.cellForRow(at: IndexPath(row: index, section: 0)) as? MessageCell)?.refreshGroupReadReceipt()
+    }
+
+    public func refreshGroupReadReceipts() {
+        for case let cell as MessageCell in self.messageList.visibleCells {
+            cell.refreshGroupReadReceipt()
+        }
+    }
     
     private func convertMessage(message: ChatMessage) -> MessageEntity {
         let entity = ComponentsRegister.shared.MessageRenderEntity.init()
@@ -1143,10 +1166,10 @@ extension MessageListView: IMessageListViewDriver {
     private func convertStatus(message: ChatMessage) -> ChatMessageStatus {
         switch message.status {
         case .succeed:
-            if message.isPeerRead {
+            if message.chatType == .chat, message.isPeerRead {
                 return .read
             }
-            if message.isDeliverAcked {
+            if message.chatType == .chat, message.isDeliverAcked {
                 return .delivered
             }
             return .succeed

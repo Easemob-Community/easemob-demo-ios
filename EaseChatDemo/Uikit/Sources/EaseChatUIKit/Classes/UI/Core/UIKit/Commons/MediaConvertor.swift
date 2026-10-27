@@ -11,6 +11,57 @@ import Photos
 //import AssetsLibrary
 import AVFAudio
 
+public extension ChatImageMessageBody {
+    /// Resolve a cached image after iOS relocates the app's data container.
+    var resolvedLocalPath: String? { MessageAttachmentFiles.existingPathInCurrentContainer(localPath) }
+    var resolvedThumbnailLocalPath: String? { MessageAttachmentFiles.existingPathInCurrentContainer(thumbnailLocalPath) }
+}
+
+/// Ensure the exact SDK download destination is usable without changing message metadata.
+enum MessageAttachmentFiles {
+    static func existingPathInCurrentContainer(_ path: String?) -> String? {
+        guard let path = path, !path.isEmpty else { return path }
+        let manager = FileManager.default
+        if manager.isReadableFile(atPath: path) { return path }
+        guard let marker = path.range(of: "/Containers/Data/Application/", options: .backwards) else { return path }
+        let components = path[marker.upperBound...].split(separator: "/").map(String.init)
+        guard components.count >= 3, UUID(uuidString: components[0]) != nil,
+              ["Documents", "Library", "tmp"].contains(components[1]),
+              !components.contains(".."), !components.contains(".") else { return path }
+        let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).resolvingSymlinksInPath()
+        let candidate = components.dropFirst().reduce(home) { $0.appendingPathComponent($1) }.resolvingSymlinksInPath()
+        var isDirectory: ObjCBool = false
+        guard candidate.path.hasPrefix(home.path + "/"),
+              manager.fileExists(atPath: candidate.path, isDirectory: &isDirectory), !isDirectory.boolValue,
+              manager.isReadableFile(atPath: candidate.path) else { return path }
+        return candidate.path
+    }
+
+    static func prepareDownload(for message: ChatMessage) throws {
+        guard let body = message.body as? ChatFileMessageBody,
+              let path = body.localPath, !path.isEmpty else { return }
+        let manager = FileManager.default
+        let destination = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
+        let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).resolvingSymlinksInPath().path
+        // Never try to recreate a previous installation's container.
+        guard destination.path.hasPrefix(home + "/") else {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError, userInfo: [
+                NSFilePathErrorKey: path,
+                NSLocalizedDescriptionKey: "Attachment path is outside the current app container. localPath: \(path), currentContainer: \(home)"
+            ])
+        }
+        var isDirectory: ObjCBool = false
+        if manager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteInvalidFileNameError, userInfo: [NSFilePathErrorKey: path])
+        }
+        let parent = destination.deletingLastPathComponent()
+        try manager.createDirectory(at: parent, withIntermediateDirectories: true)
+        guard manager.isWritableFile(atPath: parent.path) else {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError, userInfo: [NSFilePathErrorKey: parent.path])
+        }
+    }
+}
+
 open class MediaConvertor: NSObject {
 
     static public func videoConvertor(videoURL: URL) -> URL? {

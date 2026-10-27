@@ -43,6 +43,8 @@ import UIKit
     /// When you click a message's topic area ,the method will call.
     /// - Parameter entity: ``MessageEntity``
     @objc optional func onMessageTopicAreaClicked(entity: MessageEntity)
+
+    @objc optional func onMessageReadReceiptClicked(entity: MessageEntity)
     
     ///  When received quit signal form other device on the chat thread.
     @objc optional func onUserQuitTopic()
@@ -75,6 +77,63 @@ import UIKit
     
     /// Whether the server has no more older history for this conversation (server history only).
     private var historyNoMore = false
+
+    public var receiptTrackingActive = false
+    private var pendingGroupReceiptQueries = [String: ChatMessage]()
+    private var queriedGroupReceipts = Set<String>()
+    private var groupReceiptQueryScheduled = false
+
+    /// Called on returning to the conversation so offline read receipts are refreshed as well.
+    public func resumeReadReceipts(visibleMessages: [MessageEntity]) {
+        self.receiptTrackingActive = true
+        self.queriedGroupReceipts.removeAll()
+        if self.chatType == .group {
+            let account = ChatClient.shared().currentUsername
+            ChatClient.shared().groupManager?.getGroupSpecificationFromServer(withId: self.to) { [weak self] _, error in
+                DispatchQueue.main.async {
+                    guard let self = self, error == nil, self.receiptTrackingActive,
+                          account == ChatClient.shared().currentUsername else { return }
+                    self.driver?.refreshGroupReadReceipts?()
+                }
+            }
+        }
+        for entity in visibleMessages where !entity.isTimeDivider {
+            self.messageVisibleMark(entity: entity)
+        }
+    }
+
+    private func queryGroupReadReceipt(_ message: ChatMessage) {
+        guard message.direction == .send, message.status == .succeed,
+              message.supportsGroupReadReceipt, message.isNeedReadReceipt,
+              !self.queriedGroupReceipts.contains(message.messageId) else { return }
+        self.pendingGroupReceiptQueries[message.messageId] = message
+        guard !self.groupReceiptQueryScheduled else { return }
+        self.groupReceiptQueryScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            self.groupReceiptQueryScheduled = false
+            let messages = Array(self.pendingGroupReceiptQueries.values)
+            self.pendingGroupReceiptQueries.removeAll()
+            guard self.receiptTrackingActive, UIApplication.shared.applicationState == .active,
+                  let manager = ChatClient.shared().chatManager else { return }
+            let account = ChatClient.shared().currentUsername
+            for offset in stride(from: 0, to: messages.count, by: 20) {
+                let batch = Array(messages[offset..<min(offset + 20, messages.count)])
+                self.queriedGroupReceipts.formUnion(batch.map(\.messageId))
+                manager.getGroupMessageReadReceipts(batch) { [weak self] receipts, error in
+                    DispatchQueue.main.async {
+                        guard let self = self, account == ChatClient.shared().currentUsername else { return }
+                        if let error = error {
+                            self.queriedGroupReceipts.subtract(batch.map(\.messageId))
+                            consoleLogInfo("getGroupMessageReadReceipts error:\(error.errorDescription ?? "")", type: .error)
+                        } else {
+                            self.messageReadReceiptReceived(receipt: receipts ?? [])
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     /// Whether history is loaded from the local database (vs. the server).
     private var loadLocalHistory: Bool { ChatUIKitClient.shared.option.option_UI.loadLocalHistoryMessages }
@@ -296,7 +355,7 @@ import UIKit
             chatMessage?.chatType = .chatRoom
         }
         if !(type == .alert || type == .cmd) {
-            chatMessage?.isNeedReadReceipt = self.chatType == .chat
+            chatMessage?.isNeedReadReceipt = self.chatType == .chat || self.chatType == .group
         }
         return chatMessage
     }
@@ -596,6 +655,12 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
     public func onMessageTopicClicked(entity: MessageEntity) {
         self.messageTopicClicked(entity: entity)
     }
+
+    public func onMessageReadReceiptClicked(entity: MessageEntity) {
+        for handler in self.handlers.allObjects {
+            handler.onMessageReadReceiptClicked?(entity: entity)
+        }
+    }
     
     @objc open func messageTopicClicked(entity: MessageEntity) {
         for handler in self.handlers.allObjects {
@@ -645,21 +710,14 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
     }
     
     @objc open func messageVisibleMark(entity: MessageEntity) {
-        let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(self.to)
-        if !entity.message.isPeerRead,entity.message.direction == .receive,entity.message.isNeedReadReceipt {
-            
-            if conversation?.type ?? .chat == .chat {
-                switch entity.message.body.type {
-                case .text,.location,.custom,.image:
-                    ChatClient.shared().chatManager?.sendMessageReadReceipts([entity.message]) { error in
-                        consoleLogInfo("sendMessageReadReceipts error:\(error?.errorDescription ?? "")", type: .error)
-                    }
-                default:
-                    break
-                }
-            }
+        guard self.receiptTrackingActive, UIApplication.shared.applicationState == .active, !entity.isAlertMessage else { return }
+        self.queryGroupReadReceipt(entity.message)
+        switch entity.message.body.type {
+        case .text, .location, .custom, .image:
+            self.chatService?.markMessageAsRead(messageId: entity.message.messageId)
+        default:
+            break
         }
-        
     }
     
     public func onFailureMessageRetrySend(entity: MessageEntity) {
@@ -694,9 +752,12 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
         let bodyType = message.message.body.type
         
         if bodyType == .voice || bodyType == .file || bodyType == .video || bodyType == .combine || bodyType == .image {
-            if !FileManager.default.fileExists(atPath: (message.message.body as? ChatFileMessageBody)?.localPath ?? "") {
+            let localPath = (message.message.body as? ChatImageMessageBody)?.resolvedLocalPath
+                ?? (message.message.body as? ChatFileMessageBody)?.localPath ?? ""
+            if !FileManager.default.fileExists(atPath: localPath) {
                 self.downloadMessageAttachment(message: message)
             } else {
+                self.chatService?.markMessageAsRead(messageId: message.message.messageId)
                 if bodyType != .voice {
                     for handler in self.handlers.allObjects {
                         handler.onMessageBubbleClicked(message: message)
@@ -754,6 +815,16 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
     }
     
     @objc open func downloadMessageAttachment(message: MessageEntity) {
+        do {
+            try MessageAttachmentFiles.prepareDownload(for: message.message)
+        } catch {
+            let failure = error as NSError
+            consoleLogInfo("Attachment local path preparation failed, messageId:\(message.message.messageId) domain:\(failure.domain) code:\(failure.code) error:\(failure.localizedDescription)", type: .error)
+            return
+        }
+        if let body = message.message.body as? ChatFileMessageBody {
+            consoleLogInfo("Attachment download start, messageId:\(message.message.messageId) localPath:\(body.localPath ?? "") parentWritable:\(FileManager.default.isWritableFile(atPath: ((body.localPath ?? "") as NSString).deletingLastPathComponent))", type: .debug)
+        }
         for handler in self.handlers.allObjects {
             handler.onMessageAttachmentLoading(loading: true)
         }
@@ -763,6 +834,10 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
                 handler.onMessageAttachmentLoading(loading: false)
             }
             if error == nil,let attachment = attachMessage {
+                message.message = attachment
+                if self.receiptTrackingActive, UIApplication.shared.applicationState == .active {
+                    self.chatService?.markMessageAsRead(messageId: attachment.messageId)
+                }
                 if attachment.body.type == .video {
                     self.cacheFrame(attachMessage: message.message)
                 }
@@ -773,35 +848,21 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
                 if message.message.body.type == .image {
                     self.cacheImage(message: message.message)
                 }
-                message.message = attachment
                 for handler in self.handlers.allObjects {
                     handler.onMessageBubbleClicked(message: message)
                 }
             } else {
-                consoleLogInfo("onMessageReplyClicked download error:\(error?.errorDescription ?? "")", type: .error)
+                consoleLogInfo("Attachment download failed, messageId:\(message.message.messageId) code:\(error.map { String($0.code.rawValue) } ?? "nil") description:\(error?.errorDescription ?? "") localPath:\((message.message.body as? ChatFileMessageBody)?.localPath ?? "")", type: .error)
             }
         })
     }
     
     @objc open func cacheImage(message: ChatMessage) {
-        if let body = (message.body as? ChatImageMessageBody) {
-            do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: body.localPath))
-                try FileManager.default.removeItem(atPath: body.localPath)
-                let image = UIImage(data: data)
-                if image?.imageOrientation == .up {
-                    body.localPath += ".jpeg"
-                } else {
-                    body.localPath += ".png"
-                }
-                try data.write(to: URL(fileURLWithPath: body.localPath))
-                ChatClient.shared().chatManager?.update(message)
-            } catch {
-                consoleLogInfo("download image then rewrite format path load error:\(error.localizedDescription)", type: .error)
-            }
-        }
+        // The SDK already saved the original image. Renaming by UIImage orientation neither
+        // converts its encoding nor safely handles GIFs or files shared by other messages.
+        // Keep the SDK path and original bytes intact.
     }
-    
+
     @objc open func cacheFrame(attachMessage: ChatMessage) {
         if let body = attachMessage.body as? ChatVideoMessageBody {
             if let path = body.localPath {
@@ -924,10 +985,13 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
 extension MessageListViewModel: ChatResponseListener {
     
     public func messageReadReceiptReceived(receipt: [MessageReadReceipt]) {
-        for r in receipt {
-            if r.conversationId == self.to {
-                if let message = ChatClient.shared().chatManager?.getMessageWithMessageId(r.messageId) {
-                    self.driver?.updateMessageStatus(message: message, status: r.isPeerReceipt ? .read:.delivered)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            for r in receipt where r.conversationId == self.to {
+                if self.chatType == .group {
+                    self.driver?.updateGroupReadReceipt?(messageId: r.messageId, readCount: r.readCount)
+                } else if let message = ChatClient.shared().chatManager?.getMessageWithMessageId(r.messageId) {
+                    self.driver?.updateMessageStatus(message: message, status: r.isPeerReceipt ? .read : .delivered)
                 }
             }
         }
@@ -984,19 +1048,7 @@ extension MessageListViewModel: ChatResponseListener {
             let entity = message
             entity.direction = message.direction
             self.driver?.showMessage(message: entity)
-            if let scrolledBottom = self.driver?.scrolledBottom,scrolledBottom {
-                let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(self.to)
-                if conversation?.type ?? .chat == .chat {
-                    switch message.body.type {
-                    case .text,.location,.custom,.image:
-                        ChatClient.shared().chatManager?.sendMessageReadReceipts([message]) { error in
-                            consoleLogInfo("sendMessageReadReceipts error:\(error?.errorDescription ?? "")", type: .error)
-                        }
-                    default:
-                        break
-                    }
-                }
-            }
+            // A delivered message is not necessarily visible. willDisplay sends its read receipt.
         }
     }
     

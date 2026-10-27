@@ -22,7 +22,10 @@ final class MineMessageListViewController: MessageListController {
     private var imageEntity = EaseChatUIKit.MessageEntity()
         
     lazy var fraudView: FraudAlertView = {
-        FraudAlertView(frame: CGRect(x: 0, y: self.navigation.frame.maxY, width: self.view.frame.width, height: EaseChatUIKit.ScreenWidth <= 375 ? 60:60))
+        let banner = FraudAlertView(frame: .zero)
+        let size = banner.sizeThatFits(CGSize(width: self.view.bounds.width, height: .greatestFiniteMagnitude))
+        banner.frame = CGRect(origin: CGPoint(x: 0, y: self.navigation.frame.maxY), size: size)
+        return banner
     }()
     
     override func createMessageContainer() -> MessageListView {
@@ -34,15 +37,12 @@ final class MineMessageListViewController: MessageListController {
     override func viewDidLoad() {
         self.view.addSubview(self.fraudView)
         super.viewDidLoad()
-        // 演示水印提示,如需恢复取消注释即可
-//        let alertView = UIImageView(frame: self.messageContainer.bounds).contentMode(.scaleAspectFit).tag(55)
-//        let alertImage = UIImage(named: "zhapian")?.withTintColor(EaseChatUIKit.Theme.style == .dark ? UIColor.theme.neutralColor7:UIColor.theme.neutralColor5)
-//        alertView.image =  alertImage
-//        self.messageContainer.insertSubview(alertView, at: 0)
+        self.messageContainer.messageList.backgroundView = ChatWatermarkView(text: "chat_demo_watermark".localized())
         self.fraudView.closeClosure = { [weak self] in
             guard let `self` = self else { return }
             UIView.animate(withDuration: 0.22) {
-                self.messageContainer.frame = CGRect(x: 0, y: self.navigation.frame.maxY, width: self.view.frame.width, height: EaseChatUIKit.ScreenHeight-self.navigation.frame.maxY)
+                self.view.setNeedsLayout()
+                self.view.layoutIfNeeded()
             }
         }
         self.fraudView.fraudContent.clickAction = { [weak self] in
@@ -61,6 +61,15 @@ final class MineMessageListViewController: MessageListController {
             }
             
         }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let size = self.fraudView.sizeThatFits(CGSize(width: self.view.bounds.width, height: .greatestFiniteMagnitude))
+        self.fraudView.frame = CGRect(origin: CGPoint(x: 0, y: self.navigation.frame.maxY), size: size)
+        let top = self.fraudView.isHidden ? self.navigation.frame.maxY : self.fraudView.frame.maxY
+        let frame = CGRect(x: 0, y: top, width: self.view.bounds.width, height: max(0, self.view.bounds.height - top))
+        if self.messageContainer.frame != frame { self.messageContainer.frame = frame }
     }
     
     
@@ -337,7 +346,7 @@ final class MineMessageListViewController: MessageListController {
             }
         case .image:
             if let body = message.message.body as? ChatImageMessageBody {
-                self.filePath = body.localPath
+                self.filePath = body.resolvedLocalPath ?? ""
                 if body.isGif {
                     self.openFile()
                 } else {
@@ -379,6 +388,54 @@ final class MineMessageListViewController: MessageListController {
         
     }
     
+}
+
+/// Demo-only decoration behind the messages; UITableView keeps it sized to the visible message area.
+private final class ChatWatermarkView: UIView, EaseChatUIKit.ThemeSwitchProtocol {
+    private let text: NSString
+    private var textColor = UIColor.clear
+
+    init(text: String) {
+        self.text = text as NSString
+        super.init(frame: .zero)
+        self.backgroundColor = .clear
+        self.isOpaque = false
+        self.isUserInteractionEnabled = false
+        self.accessibilityElementsHidden = true
+        self.contentMode = .redraw
+        self.clipsToBounds = true
+        EaseChatUIKit.Theme.registerSwitchThemeViews(view: self)
+        self.switchTheme(style: EaseChatUIKit.Theme.style)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func switchTheme(style: EaseChatUIKit.ThemeStyle) {
+        self.textColor = style == .dark ? UIColor.white.withAlphaComponent(0.08) : UIColor.black.withAlphaComponent(0.055)
+        self.setNeedsDisplay()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard !self.bounds.isEmpty, let context = UIGraphicsGetCurrentContext() else { return }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 15, weight: .semibold),
+            .foregroundColor: self.textColor
+        ]
+        let textSize = self.text.size(withAttributes: attributes)
+        let columnSpacing = ceil(textSize.width) + 48
+        let rowSpacing: CGFloat = 80
+        let radius = hypot(self.bounds.width, self.bounds.height) / 2
+        context.saveGState()
+        context.translateBy(x: self.bounds.midX, y: self.bounds.midY)
+        context.rotate(by: -.pi / 4)
+        for (row, y) in stride(from: -radius - rowSpacing, through: radius + rowSpacing, by: rowSpacing).enumerated() {
+            let offset = row.isMultiple(of: 2) ? CGFloat.zero : columnSpacing / 2
+            for x in stride(from: -radius - columnSpacing, through: radius + columnSpacing, by: columnSpacing) {
+                self.text.draw(at: CGPoint(x: x + offset, y: y), withAttributes: attributes)
+            }
+        }
+        context.restoreGState()
+    }
 }
 
 extension MineMessageListViewController: ImageBrowserProtocol {
