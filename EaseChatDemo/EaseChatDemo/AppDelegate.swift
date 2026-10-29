@@ -396,7 +396,12 @@ extension AppDelegate: UserStateChangedListener {
                         let profile = EaseChatProfile()
                         profile.id = group.groupId
                         profile.nickname = group.groupName
-                        profile.avatarURL = group.settings.ext
+                        if let ext = group.settings.ext, !ext.isEmpty {
+                            profile.avatarURL = ext
+                        }
+                        if !group.groupAvatar.isEmpty {
+                            profile.avatarURL = group.groupAvatar
+                        }
                         profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
                         profiles.append(profile)
                         profile.insert()

@@ -287,7 +287,12 @@ extension MainViewController: ChatUserProfileProvider,ChatGroupProfileProvider {
                 let profile = EaseChatProfile()
                 profile.id = groupId
                 profile.nickname = group.groupName
-                profile.avatarURL = group.settings.ext
+                if let ext = group.settings.ext, !ext.isEmpty {
+                    profile.avatarURL = ext
+                }
+                if !group.groupAvatar.isEmpty {
+                    profile.avatarURL = group.groupAvatar
+                }
                 resultProfiles.append(profile)
                 ChatUIKitContext.shared?.groupCache?[groupId] = profile
             }

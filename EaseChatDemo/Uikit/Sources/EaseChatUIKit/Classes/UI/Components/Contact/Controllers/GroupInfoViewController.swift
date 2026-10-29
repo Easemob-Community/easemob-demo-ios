@@ -158,7 +158,12 @@ import UIKit
                     let profile = ChatUserProfile()
                     profile.id = groupId
                     profile.nickname = group.groupName ?? ""
-                    profile.avatarURL = group.settings.ext ?? ""
+                    if let ext = group.settings.ext, !ext.isEmpty {
+                        profile.avatarURL = ext
+                    }
+                    if !group.groupAvatar.isEmpty {
+                        profile.avatarURL = group.groupAvatar
+                    }
                     ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
                 } else if let error = error {
                     self.showToast(toast: error.errorDescription ?? "group_admin_load_failed".chat.localize)

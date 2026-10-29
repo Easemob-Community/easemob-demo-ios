@@ -88,6 +88,9 @@ import UIKit
             profile.id = $0.groupId
             profile.nickname = $0.groupName
             profile.avatarURL = ChatUIKitContext.shared?.groupCache?[$0.groupId]?.avatarURL ?? ""
+            if !$0.groupAvatar.isEmpty {
+                profile.avatarURL = $0.groupAvatar
+            }
             return profile
         })
         self.groupList.reloadData()
