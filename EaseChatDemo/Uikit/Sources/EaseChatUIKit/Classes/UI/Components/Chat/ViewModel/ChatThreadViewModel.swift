@@ -199,6 +199,9 @@ import UIKit
             if type == .gif {
                 imageBody.isGif = true
             }
+            // 按原图发送：SDK 默认压缩后再发，收端只能拿到大图。
+            imageBody.isOriginalImage = true
+            imageBody.compressionRatio = 1.0
             imageBody.size = UIImage(contentsOfFile: text)?.size ?? .zero
             chatMessage = ChatMessage(conversationID: self.to, body: imageBody, ext: ext)
         case .voice:

@@ -293,6 +293,9 @@ import UIKit
             if type == .gif {
                 imageBody.isGif = true
             }
+            // 按原图发送：SDK 默认压缩后再发，收端只能拿到大图。
+            imageBody.isOriginalImage = true
+            imageBody.compressionRatio = 1.0
             imageBody.size = UIImage(contentsOfFile: text)?.size ?? .zero
             chatMessage = ChatMessage(conversationID: self.to, body: imageBody, ext: ext)
         case .voice:
@@ -815,6 +818,17 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
     }
     
     @objc open func downloadMessageAttachment(message: MessageEntity) {
+        // Opening an image hands it to the image viewer, which downloads the large image
+        // itself and fetches the original only when the user asks for it. Downloading the
+        // attachment here as well would fetch the same file twice, so open the viewer and
+        // let its download take over. GIFs stay on the old path: they open in the file
+        // viewer, which shows the downloaded file and never downloads anything itself.
+        if let image = message.message.body as? ChatImageMessageBody, !image.isGif {
+            for handler in self.handlers.allObjects {
+                handler.onMessageBubbleClicked(message: message)
+            }
+            return
+        }
         do {
             try MessageAttachmentFiles.prepareDownload(for: message.message)
         } catch {

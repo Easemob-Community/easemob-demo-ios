@@ -20,6 +20,7 @@
 		0544D43E2C3BC24000E36B08 /* ImagePreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D4392C3BC24000E36B08 /* ImagePreviewController.swift */; };
 		0544D43F2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D43A2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift */; };
 		0544D4402C3BC24000E36B08 /* PreviewImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D43B2C3BC24000E36B08 /* PreviewImage.swift */; };
+		05F1A0022E5A000000000002 /* ImageDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F1A0012E5A000000000001 /* ImageDetailViewController.swift */; };
 		0544D4432C3BC2C000E36B08 /* MineMessageEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D4422C3BC2C000E36B08 /* MineMessageEntity.swift */; };
 		054B3A872E54234D006AD8A6 /* MineConversationInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054B3A862E54234D006AD8A6 /* MineConversationInfo.swift */; };
 		0551FFA42B9FE4C000FF3294 /* NotificationSettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0551FFA32B9FE4C000FF3294 /* NotificationSettingViewController.swift */; };
@@ -115,6 +116,7 @@
 		0544D4392C3BC24000E36B08 /* ImagePreviewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePreviewController.swift; sourceTree = "<group>"; };
 		0544D43A2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePreviewTransitionDelegate.swift; sourceTree = "<group>"; };
 		0544D43B2C3BC24000E36B08 /* PreviewImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewImage.swift; sourceTree = "<group>"; };
+		05F1A0012E5A000000000001 /* ImageDetailViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImageDetailViewController.swift; sourceTree = "<group>"; };
 		0544D4422C3BC2C000E36B08 /* MineMessageEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineMessageEntity.swift; sourceTree = "<group>"; };
 		054B3A862E54234D006AD8A6 /* MineConversationInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineConversationInfo.swift; sourceTree = "<group>"; };
 		0551FFA32B9FE4C000FF3294 /* NotificationSettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingViewController.swift; sourceTree = "<group>"; };
@@ -272,6 +274,7 @@
 				0544D4392C3BC24000E36B08 /* ImagePreviewController.swift */,
 				0544D43A2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift */,
 				0544D43B2C3BC24000E36B08 /* PreviewImage.swift */,
+				05F1A0012E5A000000000001 /* ImageDetailViewController.swift */,
 			);
 			path = PhotoBrowser;
 			sourceTree = "<group>";
@@ -638,6 +641,7 @@
 				05E0D7322BA2E2C200373197 /* MineCallInviteUsersController.swift in Sources */,
 				057227642B97FFB200AA866D /* AboutEasemobHeader.swift in Sources */,
 				0544D4402C3BC24000E36B08 /* PreviewImage.swift in Sources */,
+				05F1A0022E5A000000000002 /* ImageDetailViewController.swift in Sources */,
 				05CDAC582D5EEA880033E088 /* FraudAlertView.swift in Sources */,
 				05E5A1C52B9971AD00955DD1 /* LanguageSettingViewController.swift in Sources */,
 				05E5A1C32B996EE400955DD1 /* LanguageCell.swift in Sources */,

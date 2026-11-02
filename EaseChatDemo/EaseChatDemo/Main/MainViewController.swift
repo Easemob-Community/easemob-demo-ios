@@ -286,12 +286,15 @@ extension MainViewController: ChatUserProfileProvider,ChatGroupProfileProvider {
             if let group = groups.first(where: { $0.groupId == groupId }) {
                 let profile = EaseChatProfile()
                 profile.id = groupId
-                profile.nickname = group.groupName
-                if let ext = group.settings.ext, !ext.isEmpty {
+                // `EMGroup` carries no nullability annotations, so Swift imports its members as
+                // implicitly unwrapped optionals. A group read from the local cache can have no
+                // name, settings or avatar, and reading those traps at runtime.
+                profile.nickname = group.groupName ?? ""
+                if let ext = group.settings?.ext, !ext.isEmpty {
                     profile.avatarURL = ext
                 }
-                if !group.groupAvatar.isEmpty {
-                    profile.avatarURL = group.groupAvatar
+                if let avatar = group.groupAvatar, !avatar.isEmpty {
+                    profile.avatarURL = avatar
                 }
                 resultProfiles.append(profile)
                 ChatUIKitContext.shared?.groupCache?[groupId] = profile

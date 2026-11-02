@@ -131,6 +131,12 @@
 "Friend request sent" = "好友请求已发送";
 "Group disbanded" = "群组已解散";
 "Save Image" = "保存图片";
+"View Original Image" = "查看原图";
+"Show Large Image" = "展示大图";
+"Failed to load image." = "图片加载失败";
+"Failed to load the original image." = "图片加载失败";
+"Failed to save image." = "保存图片失败";
+"Successful to save image." = "图片已保存到相册";
 
 "contactID" = "通过手机号或ID添加联系人";
 

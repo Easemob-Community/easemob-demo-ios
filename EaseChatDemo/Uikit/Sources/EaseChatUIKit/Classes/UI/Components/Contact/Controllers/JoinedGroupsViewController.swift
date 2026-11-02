@@ -86,10 +86,11 @@ import UIKit
         self.datas = groups.map({
             let profile = ChatUserProfile()
             profile.id = $0.groupId
-            profile.nickname = $0.groupName
+            // Unannotated `EMGroup` members import as implicitly unwrapped optionals.
+            profile.nickname = $0.groupName ?? ""
             profile.avatarURL = ChatUIKitContext.shared?.groupCache?[$0.groupId]?.avatarURL ?? ""
-            if !$0.groupAvatar.isEmpty {
-                profile.avatarURL = $0.groupAvatar
+            if let avatar = $0.groupAvatar, !avatar.isEmpty {
+                profile.avatarURL = avatar
             }
             return profile
         })

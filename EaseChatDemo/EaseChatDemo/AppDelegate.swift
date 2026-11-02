@@ -226,6 +226,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             NotificationCenter.default.post(name: Notification.Name(backLoginPage), object: nil)
         }
     }
+
     // MARK: UISceneSession Lifecycle
 
     func application(
@@ -395,12 +396,14 @@ extension AppDelegate: UserStateChangedListener {
                     for group in groups {
                         let profile = EaseChatProfile()
                         profile.id = group.groupId
-                        profile.nickname = group.groupName
-                        if let ext = group.settings.ext, !ext.isEmpty {
+                        // Unannotated `EMGroup` members import as implicitly unwrapped
+                        // optionals; a cached group may have no name, settings or avatar.
+                        profile.nickname = group.groupName ?? ""
+                        if let ext = group.settings?.ext, !ext.isEmpty {
                             profile.avatarURL = ext
                         }
-                        if !group.groupAvatar.isEmpty {
-                            profile.avatarURL = group.groupAvatar
+                        if let avatar = group.groupAvatar, !avatar.isEmpty {
+                            profile.avatarURL = avatar
                         }
                         profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
                         profiles.append(profile)

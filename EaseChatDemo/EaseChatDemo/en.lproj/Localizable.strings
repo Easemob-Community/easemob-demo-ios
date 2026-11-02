@@ -122,6 +122,12 @@
 "Friend request sent" = "Friend request sent";
 "Group disbanded" = "Group disbanded";
 "Save Image" = "Save Image";
+"View Original Image" = "View Original Image";
+"Show Large Image" = "Show Large Image";
+"Failed to load image." = "Failed to load image.";
+"Failed to load the original image." = "Failed to load the original image.";
+"Failed to save image." = "Failed to save image.";
+"Successful to save image." = "Successful to save image.";
 
 "contactID" = "Add contacts by phone number or ID.";
 

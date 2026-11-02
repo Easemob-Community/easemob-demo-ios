@@ -8,7 +8,6 @@
 import UIKit
 import EaseChatUIKit
 import EaseCallUIKit
-import Photos
 import AVFoundation
 
 let callIdentifier = "msgType"
@@ -18,9 +17,7 @@ let callValue = "rtcCallWithAgora"
 final class MineMessageListViewController: MessageListController {
     
     private var otherPartyStatus = ""
-    
-    private var imageEntity = EaseChatUIKit.MessageEntity()
-        
+
     lazy var fraudView: FraudAlertView = {
         let banner = FraudAlertView(frame: .zero)
         let size = banner.sizeThatFits(CGSize(width: self.view.bounds.width, height: .greatestFiniteMagnitude))
@@ -379,13 +376,14 @@ final class MineMessageListViewController: MessageListController {
     }
     
     func viewImage(entity: EaseChatUIKit.MessageEntity) {
-        self.imageEntity = entity
-        let preview = ImagePreviewController(with: self)
-        preview.selectedIndex = 0
-        preview.presentDuration = 0.3
-        preview.dissmissDuration = 0.3
-        self.present(preview, animated: true)
-        
+        let row = self.messageContainer.messages.firstIndex {
+            $0.message.messageId == entity.message.messageId
+        }
+        let cell = row.flatMap {
+            self.messageContainer.messageList.cellForRow(at: IndexPath(item: $0, section: 0)) as? ImageMessageCell
+        }
+        let controller = ImageDetailViewController(message: entity.message, thumbnail: cell?.content.image)
+        self.present(controller, animated: true)
     }
     
 }
@@ -435,72 +433,6 @@ private final class ChatWatermarkView: UIView, EaseChatUIKit.ThemeSwitchProtocol
             }
         }
         context.restoreGState()
-    }
-}
-
-extension MineMessageListViewController: ImageBrowserProtocol {
-    func numberOfPhotos(with browser: ImagePreviewController) -> Int {
-        1
-    }
-    
-    func photo(of index: Int, with browser: ImagePreviewController) -> PreviewImage {
-        if let row = self.messageContainer.messages.firstIndex(of: self.imageEntity),let cell = self.messageContainer.messageList.cellForRow(at: IndexPath(item: row, section: 0)) as? ImageMessageCell,let image = cell.content.image {
-            return PreviewImage(image: image, originalView: cell.content)
-        }
-        return PreviewImage(image: UIImage())
-    }
-    
-    func didLongPressPhoto(at index: Int, with browser: ImagePreviewController) {
-        DialogManager.shared.showActions(actions: [ActionSheetItem(title: "Save Image".localized(), type: .normal, tag: "SaveImage",image: UIImage(named: "photo", in: .chatBundle, with: nil)),ActionSheetItem(title: "barrage_long_press_menu_forward".chat.localize, type: .normal,tag: "Forward",image: UIImage(named: "message_action_forward", in: .chatBundle, with: nil))]) { [weak self] item in
-            guard let `self` = self else {return}
-            switch item.tag {
-            case "SaveImage": self.saveImageToAlbum()
-            case "Forward": self.forwardMessage(message: self.imageEntity.message)
-            default:break
-            }
-        }
-    }
-    
-    func saveImageToAlbum() {
-        if let row = self.messageContainer.messages.firstIndex(of: self.imageEntity),let cell = self.messageContainer.messageList.cellForRow(at: IndexPath(item: row, section: 0)) as? ImageMessageCell,let image = cell.content.image {
-            // Check authorization status
-            let status = PHPhotoLibrary.authorizationStatus()
-            
-            switch status {
-            case .authorized,.limited:
-                // Save the image if authorized
-                UIImageWriteToSavedPhotosAlbum(image, self, #selector(image(_:didFinishSavingWithError:contextInfo:)), nil)
-            case .denied, .restricted:
-                // Handle denied or restricted status
-                DialogManager.shared.showAlert(title: "Access Limited", content: "Access to photo library is denied or restricted.", showCancel: true, showConfirm: true) { _ in
-                    
-                }
-            case .notDetermined:
-                // Request authorization
-                PHPhotoLibrary.requestAuthorization { status in
-                    if status == .authorized {
-                        // Save the image if authorized
-                        UIImageWriteToSavedPhotosAlbum(image, self, #selector(self.image(_:didFinishSavingWithError:contextInfo:)), nil)
-                    } else {
-                        DialogManager.shared.showAlert(title: "Access Denied", content: "Access to photo library is denied.", showCancel: false, showConfirm: true) { _ in
-                            
-                        }
-                    }
-                }
-            @unknown default:
-                fatalError("Unknown authorization status")
-            }
-        }
-    }
-    
-    @objc func image(_ image: UIImage, didFinishSavingWithError error: NSError?, contextInfo: UnsafeRawPointer) {
-        if let error = error {
-            // Handle the error
-            UIViewController.currentController?.showToast(toast: "Failed to save image.")
-        } else {
-            // Handle success
-            UIViewController.currentController?.showToast(toast: "Successful to save image.")
-        }
     }
 }
 

@@ -158,11 +158,11 @@ import UIKit
                     let profile = ChatUserProfile()
                     profile.id = groupId
                     profile.nickname = group.groupName ?? ""
-                    if let ext = group.settings.ext, !ext.isEmpty {
+                    if let ext = group.settings?.ext, !ext.isEmpty {
                         profile.avatarURL = ext
                     }
-                    if !group.groupAvatar.isEmpty {
-                        profile.avatarURL = group.groupAvatar
+                    if let avatar = group.groupAvatar, !avatar.isEmpty {
+                        profile.avatarURL = avatar
                     }
                     ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
                 } else if let error = error {
@@ -699,7 +699,7 @@ extension GroupInfoViewController: UITableViewDelegate,UITableViewDataSource {
                 let profile = ChatUserProfile()
                 profile.id = self.chatGroup.groupId
                 profile.nickname = text
-                profile.avatarURL = self.chatGroup.settings.ext
+                profile.avatarURL = self.chatGroup.settings?.ext ?? ""
                 ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
             }
             ChatUIKitContext.shared?.onGroupNameUpdated?(self.chatGroup.groupId, text)

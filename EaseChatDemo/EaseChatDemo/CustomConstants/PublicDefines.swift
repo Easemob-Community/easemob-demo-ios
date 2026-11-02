@@ -8,7 +8,7 @@
 import Foundation
 
 //参考环信官方文档
-public let AppKey: String = "easemob#easeim"
+public let AppKey: String = "easemob-demo#support"
 //最好使用自己的Appserver地址，尽量不要使用此地址，此地址只用于快速跑通Demo,此Demo对应Appserver是开源的具体参看demo readme
 public let ServerHost: String = ""
 //调试模式下用户名密码登录时获取token的host,存于EaseChatDemoServerConfig中,由服务器配置页填写
