@@ -20,7 +20,6 @@
 		0544D43E2C3BC24000E36B08 /* ImagePreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D4392C3BC24000E36B08 /* ImagePreviewController.swift */; };
 		0544D43F2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D43A2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift */; };
 		0544D4402C3BC24000E36B08 /* PreviewImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D43B2C3BC24000E36B08 /* PreviewImage.swift */; };
-		05F1A0022E5A000000000002 /* ImageDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F1A0012E5A000000000001 /* ImageDetailViewController.swift */; };
 		0544D4432C3BC2C000E36B08 /* MineMessageEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544D4422C3BC2C000E36B08 /* MineMessageEntity.swift */; };
 		054B3A872E54234D006AD8A6 /* MineConversationInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054B3A862E54234D006AD8A6 /* MineConversationInfo.swift */; };
 		0551FFA42B9FE4C000FF3294 /* NotificationSettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0551FFA32B9FE4C000FF3294 /* NotificationSettingViewController.swift */; };
@@ -71,10 +70,11 @@
 		05E5A1C72B9997FC00955DD1 /* DemoLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E5A1C62B9997FC00955DD1 /* DemoLanguage.swift */; };
 		05E5A1C92B99A8C200955DD1 /* ColorSettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E5A1C82B99A8C200955DD1 /* ColorSettingViewController.swift */; };
 		05E831AE2CEDCEFC00C527EA /* BalooTamma-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 05E831AD2CEDCEFC00C527EA /* BalooTamma-Regular.ttf */; };
+		05F1A0022E5A000000000002 /* ImageDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F1A0012E5A000000000001 /* ImageDetailViewController.swift */; };
 		05FAF2B72EF1583400B7F56E /* person-info.html in Resources */ = {isa = PBXBuildFile; fileRef = 05FAF2B62EF1583400B7F56E /* person-info.html */; };
 		05FE6C2A2B9A9F160030A983 /* ThemesSettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05FE6C292B9A9F160030A983 /* ThemesSettingViewController.swift */; };
 		05FE6C2C2B9AADD00030A983 /* ColorHueSettingCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05FE6C2B2B9AADD00030A983 /* ColorHueSettingCell.swift */; };
-		C00458792DEFF77800A0FBBD /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = C00458782DEFF77800A0FBBD /* Config.plist */; };
+		3A996B1D309832C700848A46 /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3A996B1C309832C700848A46 /* Config.plist */; };
 		CA2A158F7FDF2AD13A592148 /* Pods_EaseChatDemo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC7D18B2AA31BFE05D118ADA /* Pods_EaseChatDemo.framework */; };
 /* End PBXBuildFile section */
 
@@ -116,7 +116,6 @@
 		0544D4392C3BC24000E36B08 /* ImagePreviewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePreviewController.swift; sourceTree = "<group>"; };
 		0544D43A2C3BC24000E36B08 /* ImagePreviewTransitionDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePreviewTransitionDelegate.swift; sourceTree = "<group>"; };
 		0544D43B2C3BC24000E36B08 /* PreviewImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewImage.swift; sourceTree = "<group>"; };
-		05F1A0012E5A000000000001 /* ImageDetailViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImageDetailViewController.swift; sourceTree = "<group>"; };
 		0544D4422C3BC2C000E36B08 /* MineMessageEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineMessageEntity.swift; sourceTree = "<group>"; };
 		054B3A862E54234D006AD8A6 /* MineConversationInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineConversationInfo.swift; sourceTree = "<group>"; };
 		0551FFA32B9FE4C000FF3294 /* NotificationSettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingViewController.swift; sourceTree = "<group>"; };
@@ -175,12 +174,13 @@
 		05E5A1C82B99A8C200955DD1 /* ColorSettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSettingViewController.swift; sourceTree = "<group>"; };
 		05E831AD2CEDCEFC00C527EA /* BalooTamma-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BalooTamma-Regular.ttf"; sourceTree = "<group>"; };
 		05EAF26A2BB2650B00D905F4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Pods/FMDB/privacy/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		05F1A0012E5A000000000001 /* ImageDetailViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImageDetailViewController.swift; sourceTree = "<group>"; };
 		05FAF2B62EF1583400B7F56E /* person-info.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "person-info.html"; sourceTree = "<group>"; };
 		05FE6C292B9A9F160030A983 /* ThemesSettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemesSettingViewController.swift; sourceTree = "<group>"; };
 		05FE6C2B2B9AADD00030A983 /* ColorHueSettingCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHueSettingCell.swift; sourceTree = "<group>"; };
 		1771B88A5DA2D3168C3039A3 /* Pods-EaseChatDemo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EaseChatDemo.release.xcconfig"; path = "Target Support Files/Pods-EaseChatDemo/Pods-EaseChatDemo.release.xcconfig"; sourceTree = "<group>"; };
+		3A996B1C309832C700848A46 /* Config.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config.plist; sourceTree = "<group>"; };
 		9B38F4753F4BED0BA45ED18F /* Pods-EaseChatDemo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EaseChatDemo.debug.xcconfig"; path = "Target Support Files/Pods-EaseChatDemo/Pods-EaseChatDemo.debug.xcconfig"; sourceTree = "<group>"; };
-		C00458782DEFF77800A0FBBD /* Config.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config.plist; sourceTree = "<group>"; };
 		EC7D18B2AA31BFE05D118ADA /* Pods_EaseChatDemo.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_EaseChatDemo.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -330,7 +330,7 @@
 				05B7C1F92B96AC3300DA0F8F /* LaunchScreen.storyboard */,
 				05B7C1FC2B96AC3300DA0F8F /* Info.plist */,
 				05E831AD2CEDCEFC00C527EA /* BalooTamma-Regular.ttf */,
-				C00458782DEFF77800A0FBBD /* Config.plist */,
+				3A996B1C309832C700848A46 /* Config.plist */,
 			);
 			path = EaseChatDemo;
 			sourceTree = "<group>";
@@ -518,12 +518,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3A996B1D309832C700848A46 /* Config.plist in Resources */,
 				05B7C1FB2B96AC3300DA0F8F /* LaunchScreen.storyboard in Resources */,
 				05B7C2082B96BB5300DA0F8F /* Localizable.strings in Resources */,
 				05E831AE2CEDCEFC00C527EA /* BalooTamma-Regular.ttf in Resources */,
 				05B7C1F82B96AC3300DA0F8F /* Assets.xcassets in Resources */,
 				05FAF2B72EF1583400B7F56E /* person-info.html in Resources */,
-				C00458792DEFF77800A0FBBD /* Config.plist in Resources */,
 				05B7C1F62B96AC3200DA0F8F /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -868,7 +868,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.0.0;
+				MARKETING_VERSION = 5.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.easemob.easeim;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -912,7 +912,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.0.0;
+				MARKETING_VERSION = 5.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.easemob.easeim;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

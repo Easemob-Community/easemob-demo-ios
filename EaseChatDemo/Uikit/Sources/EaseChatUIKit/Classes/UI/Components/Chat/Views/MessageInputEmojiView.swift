@@ -23,7 +23,7 @@ import UIKit
     public let gifNames: [String] = (1...13).map { "gif_cover_\($0)" }
 
     /// Captions displayed under each gif cover,aligned with `gifNames`.Empty string means no caption.
-    public let gifCaptions: [String] = ["亮个相吧","辛苦啦","Bug终结者","你说神嘛","报错了","真棒","厉害","笑死","成功啦","真棒棒","好的收到","上线成功","谢谢老板"]
+    public let gifCaptions: [String] = ["亮个相吧","辛苦啦","Bug终结者","你说神嘛","报错了","真棒","笑死","厉害","真棒棒","好的收到","上线成功","成功啦","谢谢老板"]
 
     private var gifPageSelected = false
 
