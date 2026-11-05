@@ -362,7 +362,7 @@ let message_bubble_space = CGFloat(1)
         //date
         let date = entity.message.showDetailDate
         self.messageDate.text = date
-        self.refreshGroupReadReceipt()
+        self.refreshReadReceipt()
         
     }
     
@@ -451,19 +451,36 @@ let message_bubble_space = CGFloat(1)
         } else {
             self.addRotation()
         }
-        self.refreshGroupReadReceipt()
+        self.refreshReadReceipt()
     }
 
-    func refreshGroupReadReceipt() {
-        let hidden = !self.entity.showsGroupReadReceipt || self.editMode
-            || self.entity.state == .sending || self.entity.state == .failure
+    func refreshReadReceipt() {
+        let isOutgoing = self.entity.message.direction == .send
+        let sent = self.entity.state != .sending && self.entity.state != .failure
+        let showsSingleReceipt = isOutgoing && sent && self.entity.message.chatType == .chat
+            && !self.entity.historyMessage && !self.entity.isAlertMessage
+        let hidden = self.editMode || !(showsSingleReceipt || (sent && self.entity.showsGroupReadReceipt))
         self.groupReadReceiptButton.isHidden = hidden
         self.groupReadReceipt.isHidden = hidden
-        self.status.isHidden = !hidden || self.entity.message.direction == .receive
-        let allRead = self.entity.groupUnreadCount == 0
-        let readCount = self.entity.effectiveGroupReadCount
-        self.groupReadReceipt.text = allRead ? "✓" : (readCount > 0 ? String(readCount) : nil)
-        self.groupReadReceiptButton.isEnabled = !hidden && !allRead
+        self.status.isHidden = !isOutgoing || showsSingleReceipt || !hidden
+        guard !hidden else { return }
+
+        let allRead: Bool
+        if showsSingleReceipt {
+            allRead = self.entity.state == .read || self.entity.message.isPeerRead
+            self.groupReadReceipt.text = allRead ? "✓" : nil
+            self.groupReadReceipt.accessibilityLabel = (allRead ? "single_receipt_read" : "single_receipt_unread").chat.localize
+        } else {
+            allRead = self.entity.groupUnreadCount == 0
+            let readCount = self.entity.effectiveGroupReadCount
+            self.groupReadReceipt.text = allRead ? "✓" : (readCount > 0 ? String(readCount) : nil)
+            self.groupReadReceiptButton.accessibilityLabel = "group_receipt_details".chat.localize
+            self.groupReadReceiptButton.accessibilityValue = self.entity.groupReadReceiptText
+        }
+        self.groupReadReceipt.isAccessibilityElement = showsSingleReceipt
+        self.groupReadReceiptButton.isAccessibilityElement = !showsSingleReceipt
+        self.groupReadReceiptButton.isUserInteractionEnabled = !showsSingleReceipt
+        self.groupReadReceiptButton.isEnabled = !showsSingleReceipt && !allRead
         let color = allRead ? (Theme.style == .dark ? UIColor.theme.neutralColor6 : UIColor.theme.neutralColor5)
             : (Theme.style == .dark ? UIColor.theme.primaryColor6 : UIColor.theme.primaryColor5)
         self.groupReadReceipt.textColor = color
@@ -475,8 +492,6 @@ let message_bubble_space = CGFloat(1)
         self.groupReadReceiptButton.frame = CGRect(x: self.status.frame.midX - 22, y: markerCenterY - 22, width: 44, height: 44)
         self.groupReadReceipt.frame = CGRect(x: (44 - width) / 2, y: 15, width: width, height: 14)
         self.groupReadReceipt.layer.cornerRadius = 7
-        self.groupReadReceiptButton.accessibilityLabel = "group_receipt_details".chat.localize
-        self.groupReadReceiptButton.accessibilityValue = self.entity.groupReadReceiptText
     }
 
     @objc private func openReadReceipt() {
@@ -487,7 +502,7 @@ let message_bubble_space = CGFloat(1)
     
     open func renderCheck(entity: MessageEntity) {
         self.checkbox.isHidden = !self.editMode
-        self.refreshGroupReadReceipt()
+        self.refreshReadReceipt()
         
         if !self.checkbox.isHidden {
             self.checkbox.image = UIImage(chatNamed: entity.selected ? "select":"unselect")
@@ -515,7 +530,7 @@ extension MessageCell: ThemeSwitchProtocol {
         self.nickName.textColor = style == .dark ? UIColor.theme.neutralSpecialColor6:UIColor.theme.neutralSpecialColor5
         self.messageDate.textColor = style == .dark ? UIColor.theme.neutralColor6:UIColor.theme.neutralColor7
         self.topicView.backgroundColor = style == .dark ? UIColor.theme.neutralColor2:UIColor.theme.neutralColor95
-        self.refreshGroupReadReceipt()
+        self.refreshReadReceipt()
     }
 }
 

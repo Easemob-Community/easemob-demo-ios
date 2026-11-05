@@ -250,6 +250,8 @@
 "group_management_transfer_confirm" = "确认将群主转让给“%@”？";
 "group_management_transfer_success" = "群主已转让";
 "group_details_search_history" = "查找聊天记录";
+"single_receipt_read" = "已读";
+"single_receipt_unread" = "未读";
 "group_receipt_counts" = "%ld人已读 · %ld人未读";
 "group_receipt_read_count" = "%ld人已读";
 

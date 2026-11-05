@@ -248,6 +248,8 @@
 "group_management_transfer_confirm" = "Transfer group ownership to “%@”?";
 "group_management_transfer_success" = "Group ownership transferred";
 "group_details_search_history" = "Search chat history";
+"single_receipt_read" = "Read";
+"single_receipt_unread" = "Unread";
 "group_receipt_counts" = "%ld read · %ld unread";
 "group_receipt_read_count" = "%ld read";
 

@@ -107,7 +107,9 @@ import UIKit
     public private(set) var emoji: MessageInputEmojiView?
     
     public private(set) lazy var extensionMenus: MessageInputExtensionView = {
-        MessageInputExtensionView(frame: CGRect(x: 0, y: self.inputField.frame.maxY+15, width: self.frame.width, height: (Appearance.chat.inputExtendActions.count > 4 ? 230:132))).backgroundColor(.clear)
+        let menu = MessageInputExtensionView(frame: CGRect(x: 0, y: self.inputField.frame.maxY+15, width: self.frame.width, height: (Appearance.chat.inputExtendActions.count > 4 ? 230:132))).backgroundColor(.clear)
+        menu.isHidden = true
+        return menu
     }()
     
     override init(frame: CGRect) {
@@ -191,10 +193,12 @@ import UIKit
             self.resetFrame(newFrame: newFrame)
             return
         }
+        // Keep the expanded input anchored to the container's bottom when its top moves.
+        let bottomDelta = newFrame.maxY - self.rawFrame.maxY
         self.rawFrame = newFrame
         self.rawHeight = newFrame.height
         self.rawTextHeight = max(self.inputField.frame.height, self.rawHeight-16)
-        self.frame = CGRect(x: self.frame.minX, y: self.frame.minY, width: newFrame.width, height: self.frame.height)
+        self.frame = CGRect(x: self.frame.minX, y: self.frame.minY + bottomDelta, width: newFrame.width, height: self.frame.height)
         self.recordedFrame = self.frame
         self.rightView.frame = CGRect(x: self.frame.width-80, y: self.inputField.frame.maxY-32, width: 30, height: 30)
         self.audio.frame = CGRect(x: 12, y: self.inputField.frame.maxY-32, width: 30, height: 30)

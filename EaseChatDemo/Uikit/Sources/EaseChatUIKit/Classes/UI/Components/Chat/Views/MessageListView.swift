@@ -1088,10 +1088,13 @@ extension MessageListView: IMessageListViewDriver {
     public func updateMessageStatus(message: ChatMessage, status: ChatMessageStatus) {
         // A time divider reuses the timestamp of the message behind it, so it must never be treated as that message.
         if let index = self.messages.firstIndex(where: { !$0.isTimeDivider && $0.message.localTime == message.localTime }) {
-            self.messages[safe: index]?.message = message
-            self.messages[safe: index]?.state = status
+            let entity = self.messages[index]
+            let keepsReadReceipt = message.chatType == .chat && message.direction == .send
+                && entity.state == .read && (status == .succeed || status == .delivered)
+            entity.message = message
+            entity.state = keepsReadReceipt ? .read : status
             if let cell = self.messageList.cellForRow(at: IndexPath(row: index, section: 0)) as? MessageCell {
-                cell.updateMessageStatus(entity: self.messages[index])
+                cell.updateMessageStatus(entity: entity)
             }
         }
     }
@@ -1101,12 +1104,12 @@ extension MessageListView: IMessageListViewDriver {
         let entity = self.messages[index]
         entity.groupReadCount = max(entity.groupReadCount, readCount)
         // Update only the receipt label, keeping the bubble, avatar and scroll position intact.
-        (self.messageList.cellForRow(at: IndexPath(row: index, section: 0)) as? MessageCell)?.refreshGroupReadReceipt()
+        (self.messageList.cellForRow(at: IndexPath(row: index, section: 0)) as? MessageCell)?.refreshReadReceipt()
     }
 
     public func refreshGroupReadReceipts() {
         for case let cell as MessageCell in self.messageList.visibleCells {
-            cell.refreshGroupReadReceipt()
+            cell.refreshReadReceipt()
         }
     }
     
