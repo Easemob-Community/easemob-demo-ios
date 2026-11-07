@@ -9,10 +9,7 @@ import UIKit
 import EaseChatUIKit
 import MobileCoreServices
 import AVFoundation
-import SwiftFFDBHotFix
 import EaseCallUIKit
-
-let userAvatarUpdated = "userAvatarUpdated"
 
 final class PersonalInfoViewController: UIViewController {
     var signature = ""
@@ -22,11 +19,14 @@ final class PersonalInfoViewController: UIViewController {
     private let account = saveIdentifier
     
     private lazy var infos: [Dictionary<String,String>] = {
-        var userId = ChatUIKitContext.shared?.currentUserId ?? ""
-        if let nickname = ChatUIKitContext.shared?.currentUser?.nickname {
-            userId = nickname
-        }
-        return [["title":"Avatar".localized(),"detail":ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""],["title":"Nickname".localized(),"detail":userId],["title":"me_signature_title".localized(),"detail":self.signature]]
+        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+        let profile = ChatUIKitContext.shared?.userProfile(id: userId)
+        let nickname = profile?.nickname ?? ""
+        return [
+            ["title": "Avatar".localized(), "detail": profile?.avatarURL ?? ""],
+            ["title": "Nickname".localized(), "detail": nickname.isEmpty ? userId : nickname],
+            ["title": "me_signature_title".localized(), "detail": self.signature]
+        ]
     }()
     
     private lazy var navigation: ChatNavigationBar = {
@@ -42,11 +42,9 @@ final class PersonalInfoViewController: UIViewController {
         self.view.addSubViews([self.navigation,self.infoList])
         self.infoList.reloadData()
         self.fetchSignature()
-        NotificationCenter.default.addObserver(self, selector: #selector(refreshAvatar), name: NSNotification.Name(userAvatarUpdated), object: nil)
-        if let url = ChatUIKitContext.shared?.currentUser?.avatarURL,!url.isEmpty {
-            self.navigation.avatarURL = url
-        }
-        
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshProfile), name: Notification.Name(profile_update_notification), object: nil)
+        self.navigation.avatarURL = self.infos[0]["detail"]
+
         self.navigation.title = "Personal Info".localized()
         self.navigation.clickClosure = { [weak self] _,_ in
             self?.navigationController?.popViewController(animated: true)
@@ -85,9 +83,13 @@ extension PersonalInfoViewController {
         self.navigationController?.pushViewController(controller, animated: true)
     }
 
-    @objc private func refreshAvatar() {
+    @objc private func refreshProfile() {
         guard self.account == saveIdentifier else { return }
-        self.infos[0]["detail"] = ChatUIKitContext.shared?.currentUser?.avatarURL ?? ""
+        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+        let profile = ChatUIKitContext.shared?.userProfile(id: userId)
+        let nickname = profile?.nickname ?? ""
+        self.infos[0]["detail"] = profile?.avatarURL ?? ""
+        self.infos[1]["detail"] = nickname.isEmpty ? userId : nickname
         self.navigation.avatarURL = self.infos[0]["detail"]
         self.infoList.reloadData()
     }
@@ -145,25 +147,11 @@ extension PersonalInfoViewController: UITableViewDelegate,UITableViewDataSource 
         ChatClient.shared().userInfoManager?.updateOwnUserInfo(nickname, with: .nickName, completion: { [weak self] info, error in
             guard let `self` = self else { return }
             DispatchQueue.main.async {
+                guard self.account == saveIdentifier else { return }
                 if error == nil {
-                    self.infos[1]["detail"] = nickname
-                    self.infoList.reloadData()
-                    ChatUIKitContext.shared?.currentUser?.nickname = nickname
-                    ChatUIKitContext.shared?.userCache?[userId]?.nickname = nickname
-                    ChatUIKitContext.shared?.chatCache?[userId]?.nickname = nickname
-                    (ChatUIKitContext.shared?.userCache?[userId] as? ChatUserProfile)?.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                    (ChatUIKitContext.shared?.chatCache?[userId] as? ChatUserProfile)?.modifyTime = Int64(Date().timeIntervalSince1970*1000)
                     CallKitManager.shared.currentUserInfo?.nickname = nickname
                     CallKitManager.shared.usersCache[userId]?.nickname = nickname
-                    if let user = ChatUIKitContext.shared?.currentUser {
-                        let profile = EaseChatProfile()
-                        profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                        profile.nickname = nickname
-                        profile.avatarURL = user.avatarURL
-                        profile.updateFFDB()
-                        ChatUIKitContext.shared?.chatCache?[userId] = profile
-                        ChatUIKitContext.shared?.userCache?[userId] = profile
-                    }
+                    ChatUIKitContext.shared?.notifyProfilesChanged()
                 } else {
                     DialogManager.shared.showAlert(title: "error".chat.localize, content: "update nickname failed".chat.localize, showCancel: false, showConfirm: true) { _ in
                         
@@ -370,20 +358,10 @@ final class UserAvatarEditor: NSObject, UIImagePickerControllerDelegate, UINavig
 
     private func commitAvatar(url: String) {
         let id = ChatUIKitContext.shared?.currentUserId ?? ""
-        let existing = (EaseChatProfile.select(where: "id = ?", values: [id]) as? [EaseChatProfile])?.first
-        let profile = existing ?? EaseChatProfile()
-        profile.id = id
-        profile.nickname = ChatUIKitContext.shared?.currentUser?.nickname ?? profile.nickname
-        profile.remark = ChatUIKitContext.shared?.currentUser?.remark ?? profile.remark
-        profile.avatarURL = url
-        profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
-        if existing == nil { profile.insert() } else { profile.updateFFDB() }
-        ChatUIKitContext.shared?.currentUser = profile
-        ChatUIKitContext.shared?.updateChatAndUserTypeCaches(profiles: [profile])
+        ChatUIKitContext.shared?.notifyProfilesChanged()
         CallKitManager.shared.currentUserInfo?.avatarURL = url
         CallKitManager.shared.usersCache[id]?.avatarURL = url
         self.isUploading = false
-        NotificationCenter.default.post(name: NSNotification.Name(userAvatarUpdated), object: nil)
         self.presenter?.showToast(toast: "me_avatar_updated".localized())
     }
 

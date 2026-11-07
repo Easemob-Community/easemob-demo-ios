@@ -53,7 +53,7 @@ import UIKit
         self.switchTheme(style: Theme.style)
         self.loadLocalGroups()
         NotificationCenter.default.addObserver(self, selector: #selector(removeGroup(notification:)), name: Notification.Name("EaseChatUIKit_leaveGroup"), object: nil)
-        NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: cache_update_notification), object: nil, queue: .main) { [weak self] notify in
+        NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: profile_update_notification), object: nil, queue: .main) { [weak self] notify in
             guard let `self` = self else { return }
             self.loadLocalGroups()
         }
@@ -83,17 +83,7 @@ import UIKit
     
     @objc open func loadLocalGroups() {
         let groups = self.groupService.loadLocalJoinedGroups()
-        self.datas = groups.map({
-            let profile = ChatUserProfile()
-            profile.id = $0.groupId
-            // Unannotated `EMGroup` members import as implicitly unwrapped optionals.
-            profile.nickname = $0.groupName ?? ""
-            profile.avatarURL = ChatUIKitContext.shared?.groupCache?[$0.groupId]?.avatarURL ?? ""
-            if let avatar = $0.groupAvatar, !avatar.isEmpty {
-                profile.avatarURL = avatar
-            }
-            return profile
-        })
+        self.datas = groups.compactMap { ChatUIKitContext.shared?.groupProfile(group: $0) }
         self.groupList.reloadData()
     }
 

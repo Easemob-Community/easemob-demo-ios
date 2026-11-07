@@ -114,9 +114,9 @@ open class BlockContactsViewController: UIViewController {
             for user in users {
                 let profile = ChatUserProfile()
                 profile.id = user
-                profile.nickname = ChatUIKitContext.shared?.userCache?[user]?.nickname ?? ""
-                profile.remark = ChatUIKitContext.shared?.userCache?[user]?.remark ?? ""
-                profile.avatarURL = ChatUIKitContext.shared?.userCache?[user]?.avatarURL ?? ""
+                profile.nickname = ChatUIKitContext.shared?.userProfile(id: user)?.nickname ?? ""
+                profile.remark = ChatUIKitContext.shared?.userProfile(id: user)?.remark ?? ""
+                profile.avatarURL = ChatUIKitContext.shared?.userProfile(id: user)?.avatarURL ?? ""
                 profiles.append(profile)
             }
         }

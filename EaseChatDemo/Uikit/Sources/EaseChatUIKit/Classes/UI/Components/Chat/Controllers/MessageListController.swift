@@ -124,31 +124,15 @@ public enum PHPickerMediaResolver {
      - conversationId: The ID of the conversation.
      - chatType: The type of chat. Default value is `.chat`.
      
-     This initializer sets the `profile` property based on the conversation ID. If the conversation ID is found in the conversations cache, the profile is set to the corresponding information. Otherwise, the profile ID is set to the conversation ID.
+     This initializer reads the user or joined group profile from the SDK for the conversation ID.
      
      The `chatType` parameter determines the type of chat, which can be `.group` or `.chat`. If the chat type is not one of these options, it defaults to `.chatroom`.
      */
     @objc(initWithConversationId:chatType:)
     public required init(conversationId: String,chatType: ChatType = .chat) {
-        if let info = chatType == .chat ? ChatUIKitContext.shared?.groupCache?[conversationId]:ChatUIKitContext.shared?.userCache?[conversationId] {
+        self.profile.id = conversationId
+        if let info = chatType == .chat ? ChatUIKitContext.shared?.userProfile(id: conversationId) : ChatUIKitContext.shared?.groupProfile(id: conversationId) {
             self.profile = info
-        } else {
-            self.profile.id = conversationId
-        }
-        if chatType == .chat {
-            if let info = ChatUIKitContext.shared?.userCache?[conversationId] {
-                self.profile.id = conversationId
-                self.profile.nickname = info.nickname
-                self.profile.remark = info.remark
-                self.profile.avatarURL = info.avatarURL
-            }
-        } else {
-            if let info = ChatUIKitContext.shared?.groupCache?[conversationId] {
-                self.profile.id = conversationId
-                self.profile.nickname = info.nickname
-                self.profile.remark = info.remark
-                self.profile.avatarURL = info.avatarURL
-            }
         }
         switch chatType {
         case .group:
@@ -164,13 +148,16 @@ public enum PHPickerMediaResolver {
     public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
 
-    
     open override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         self.navigationController?.setNavigationBarHidden(true, animated: false)
-        guard let info = (self.chatType == .chat ? ChatUIKitContext.shared?.userCache:ChatUIKitContext.shared?.groupCache)?[self.profile.id] else { return }
+        self.refreshProfileFromSDK()
+        self.processFollowInputAttachmentAction()
+    }
+
+    @objc private func refreshProfileFromSDK() {
+        guard let info = (self.chatType == .chat ? ChatUIKitContext.shared?.userProfile(id: self.profile.id) : ChatUIKitContext.shared?.groupProfile(id: self.profile.id)) else { return }
         self.profile = info
         var nickname = self.profile.remark
         if nickname.isEmpty {
@@ -181,7 +168,6 @@ public enum PHPickerMediaResolver {
         }
         self.navigation.title = nickname
         self.navigation.avatarURL = info.avatarURL
-        self.processFollowInputAttachmentAction()
     }
     
     open override func viewDidAppear(_ animated: Bool) {
@@ -221,6 +207,7 @@ public enum PHPickerMediaResolver {
     
     open override func viewDidLoad() {
         super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshProfileFromSDK), name: Notification.Name(profile_update_notification), object: nil)
         self.view.window?.backgroundColor = .black
         self.view.backgroundColor = UIColor.theme.neutralColor98
         self.setupNavigation()
@@ -294,7 +281,6 @@ public enum PHPickerMediaResolver {
     }
     
     deinit {
-        ChatUIKitContext.shared?.cleanCache(type: .chat)
         URLPreviewManager.caches.removeAll()
     }
 }

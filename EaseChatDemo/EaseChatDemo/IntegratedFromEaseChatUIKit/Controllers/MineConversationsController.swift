@@ -9,6 +9,8 @@ import UIKit
 import EaseChatUIKit
 
 final class MineConversationsController: ConversationListController {
+    @UserDefault("EaseChatDemoUserName", defaultValue: "") private var userName
+
     private lazy var limitCount: UILabel = {
         UILabel(frame: CGRect(x: 0, y: 13, width: 50, height: 22)).font(UIFont.theme.bodyLarge).text("0/20").textColor(Theme.style == .dark ? UIColor.theme.neutralColor4:UIColor.theme.neutralColor7)
     }()
@@ -21,8 +23,9 @@ final class MineConversationsController: ConversationListController {
         super.viewDidLoad()
         self.listenToUserStatus()
         self.showUserStatus()
-        self.previewRequestContact()
         self.navigation.separateLine.isHidden = true
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshOwnAvatar), name: Notification.Name(profile_update_notification), object: nil)
+
         NotificationCenter.default.addObserver(forName: Notification.Name("didUpdateCallEndReason"), object: nil, queue: .main) { [weak self] notification in
             guard let `self` = self else { return }
             if let message = notification.object as? ChatMessage {
@@ -35,10 +38,7 @@ final class MineConversationsController: ConversationListController {
                 }
             }
         }
-        NotificationCenter.default.addObserver(forName: Notification.Name("cu_avatar_update_notification"), object: nil, queue: .main) { [weak self] notification in
-            guard let `self` = self else { return }
-            self.navigation.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL
-        }
+
     }
     
     override func navigationClick(type: ChatNavigationBarClickEvent, indexPath: IndexPath?) {
@@ -70,7 +70,11 @@ final class MineConversationsController: ConversationListController {
         
     }
     
-    
+    @objc private func refreshOwnAvatar() {
+        // 这里之所以使用`UserDefault`中的`userName`是因为在数据库open之后并且登录成功之前，`ChatClient.shared().currentUsername`并没有数据.
+        let userId = userName
+        self.navigation.avatarURL = ChatUIKitContext.shared?.userProfile(id: userId)?.avatarURL
+    }
     
     private func listenToUserStatus() {
         PresenceManager.shared.addHandler(handler: self)
@@ -176,17 +180,15 @@ final class MineConversationsController: ConversationListController {
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         self.navigationController?.setNavigationBarHidden(true, animated: false)
-        self.navigation.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL
     }
     
     
     override func create(profiles: [ChatUserProfileProtocol]) {
         var name = ""
-        var users = [ChatUserProfileProtocol]()
+        var users = profiles
         let ownerId = ChatUIKitContext.shared?.currentUserId ?? ""
-        if let owner = ChatUIKitContext.shared?.userCache?[ownerId] {
-            users.append(owner)
-            users.append(contentsOf: profiles)
+        if let owner = ChatUIKitContext.shared?.userProfile(id: ownerId) {
+            users.insert(owner, at: 0)
         }
         var ids = [String]()
         for (index,profile) in users.enumerated() {
@@ -231,7 +233,7 @@ final class MineConversationsController: ConversationListController {
                 consoleLogInfo("fetchGroupAvatar error:\(error?.localizedDescription ?? "")", type: .error)
             } else {
                 if let avatarURL = result?["avatarUrl"] as? String {
-                    if let info = ChatUIKitContext.shared?.groupCache?[groupId] {
+                    if let info = ChatUIKitContext.shared?.groupProfile(id: groupId) {
                         info.avatarURL = avatarURL
                         self?.viewModel?.renderDriver(infos: [info])
                     } else {
@@ -243,16 +245,6 @@ final class MineConversationsController: ConversationListController {
                 } else {
                     consoleLogInfo("fetchGroupAvatar error:\(result?["error"] as? String ?? "")", type: .error)
                 }
-            }
-        }
-    }
-    
-    private func previewRequestContact() {
-        DispatchQueue.global().async {
-            let contacts = ChatClient.shared().contactManager?.getContacts() ?? []
-            let loadFinish = UserDefaults.standard.bool(forKey: "EaseChatUIKit_contact_fetch_server_finished"+saveIdentifier)
-            if !loadFinish,contacts.count <= 0 {
-
             }
         }
     }

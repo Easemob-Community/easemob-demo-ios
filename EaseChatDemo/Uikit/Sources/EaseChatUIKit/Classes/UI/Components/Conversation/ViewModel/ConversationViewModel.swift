@@ -25,7 +25,7 @@ public let disturb_change = "EaseUIKit_do_not_disturb_changed"
     public required override init() {
         super.init()
         NotificationCenter.default.addObserver(self, selector: #selector(loadExistLocalDataIfEmptyFetchServer), name: Notification.Name("New Friend Chat"), object: nil)
-        NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: cache_update_notification), object: nil, queue: .main) { [weak self] notify in
+        NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: profile_update_notification), object: nil, queue: .main) { [weak self] notify in
             guard let `self` = self else { return }
             if let infos = ChatClient.shared().chatManager?.getAllConversations(true) {
                 self.driver?.refreshList(infos: self.mapper(objects: infos))
@@ -152,76 +152,13 @@ extension ConversationViewModel: ConversationListActionEventsDelegate {
     }
     
     @objc open func requestDisplayProfiles(ids: [String]) {
-        var privateChats = [String]()
-        var groupChats = [String]()
-        for id in ids {
-            if let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(id) {
-                if conversation.type == .chat {
-                    if let userCache = ChatUIKitContext.shared?.userCache?[id],!userCache.nickname.isEmpty {
-                        continue
-                    }
-                    privateChats.append(id)
-                } else {
-                    if let groupCache = ChatUIKitContext.shared?.groupCache?[id],!groupCache.nickname.isEmpty {
-                        continue
-                    }
-                    groupChats.append(id)
-                }
-            }
+        let profiles = ids.compactMap { id -> ChatUserProfileProtocol? in
+            guard let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(id) else { return nil }
+            return ChatUIKitContext.shared?.conversationProfile(conversation: conversation)
         }
-        if ChatUIKitContext.shared?.userProfileProvider != nil {
-            let userIds = privateChats.map { $0 }
-            Task(priority: .background) { [weak self] in
-                guard let `self` = self else { return }
-                let profiles = await ChatUIKitContext.shared?.userProfileProvider?.fetchProfiles(profileIds: userIds) ?? []
-                self.cacheUser(profiles: profiles)
-                self.renderDriver(infos: profiles)
-            }
-        }
-        if ChatUIKitContext.shared?.groupProfileProvider != nil {
-            let groupIds = groupChats
-            Task(priority: .background) { [weak self] in
-                guard let `self` = self else { return }
-                let profiles = await ChatUIKitContext.shared?.groupProfileProvider?.fetchGroupProfiles(profileIds: groupIds) ?? []
-                self.cacheGroup(profiles: profiles)
-                self.driver?.refreshProfiles(infos: profiles)
-            }
-        }
-        if ChatUIKitContext.shared?.userProfileProviderOC != nil {
-            ChatUIKitContext.shared?.userProfileProviderOC?.fetchProfiles(profileIds: privateChats, completion: { [weak self] profiles in
-                self?.cacheUser(profiles: profiles)
-                DispatchQueue.main.async {
-                    self?.driver?.refreshProfiles(infos: profiles)
-                }
-            })
-        }
-        if ChatUIKitContext.shared?.groupProfileProviderOC != nil {
-            ChatUIKitContext.shared?.groupProfileProviderOC?.fetchGroupProfiles(profileIds: groupChats, completion: { [weak self] profiles in
-                self?.cacheGroup(profiles: profiles)
-                DispatchQueue.main.async {
-                    self?.driver?.refreshProfiles(infos: profiles)
-                }
-            })
-        }
-        
+        self.renderDriver(infos: profiles)
     }
-    
-    @objc open func cacheUser(profiles: [ChatUserProfileProtocol]) {
-        for profile in profiles {
-            ChatUIKitContext.shared?.userCache?[profile.id]?.nickname = profile.nickname
-            ChatUIKitContext.shared?.userCache?[profile.id]?.remark = profile.remark
-            ChatUIKitContext.shared?.userCache?[profile.id]?.avatarURL = profile.avatarURL
-        }
-    }
-    
-    @objc open func cacheGroup(profiles: [ChatUserProfileProtocol]) {
-        for profile in profiles {
-            ChatUIKitContext.shared?.groupCache?[profile.id]?.nickname = profile.nickname
-            ChatUIKitContext.shared?.groupCache?[profile.id]?.avatarURL = profile.avatarURL
-            ChatUIKitContext.shared?.groupCache?[profile.id]?.remark = profile.remark
-        }
-    }
-    
+
     @objc open func renderDriver(infos: [ChatUserProfileProtocol]) {
         self.driver?.refreshProfiles(infos: infos)
     }
@@ -500,40 +437,16 @@ extension ConversationViewModel: MultiDeviceListener {
     @objc open func mapper(objects: [ChatConversation]) -> [ConversationInfo] {
         objects.map {
             let conversation = ComponentsRegister.shared.Conversation.init()
+            let profile = ChatUIKitContext.shared?.conversationProfile(conversation: $0)
             conversation.id = $0.conversationId
-            var nickname = ""
-            var profile: ChatUserProfileProtocol?
-            if $0.type == .chat {
-                profile = ChatUIKitContext.shared?.userCache?[$0.conversationId]
-            } else {
-                profile = ChatUIKitContext.shared?.groupCache?[$0.conversationId]
-                if ChatUIKitContext.shared?.groupProfileProvider == nil,ChatUIKitContext.shared?.groupProfileProviderOC == nil {
-                    profile?.nickname = ChatGroup(id: $0.conversationId).groupName ?? ""
-                }
-            }
-            if nickname.isEmpty {
-                nickname = profile?.remark ?? ""
-            }
-            if nickname.isEmpty {
-                nickname = profile?.nickname ?? ""
-            }
-            if nickname.isEmpty {
-                nickname = $0.conversationId
-            }
+            conversation.nickname = profile?.nickname ?? ""
+            conversation.remark = profile?.remark ?? ""
+            conversation.avatarURL = profile?.avatarURL ?? ""
             conversation.unreadCount = UInt($0.unreadMessagesCount)
             conversation.lastMessage = $0.latestMessage
             conversation.type = ChatUserProfileProviderType(rawValue: UInt($0.type.rawValue)) ?? .chat
             conversation.pinned = $0.isPinned
-            conversation.nickname = profile?.nickname ?? ""
-            conversation.remark = profile?.remark ?? ""
-            conversation.avatarURL = profile?.avatarURL ?? ""
             conversation.doNotDisturb = $0.disturbType != .all
-            if let conversationName = $0.conversationName(), !conversationName.isEmpty {
-                conversation.nickname = conversationName
-            }
-            if let conversationAvatarUrl = $0.conversationAvatar(), !conversationAvatarUrl.isEmpty {
-                conversation.avatarURL = conversationAvatarUrl
-            }
             _ = conversation.showContent
             return conversation
         }
@@ -549,15 +462,13 @@ extension ConversationViewModel: ChatDataSyncListener {
         self.service?.loadExistConversations()
     }
     
-    public func onChatDataSyncStart() {
+    public func onChatDataSyncStart(type: DataSyncType) {
         self.conversationSyncClosure?(true)
     }
     
-    public func onChatDataSyncFinished(error: ChatError?) {
+    public func onChatDataSyncFinished(error: ChatError?, type: DataSyncType) {
         self.conversationSyncClosure?(false)
-        if error == nil {
-            self.service?.loadExistConversations()
-        }
+        // List data refreshes through the shared debounced profile notification.
     }
 }
 

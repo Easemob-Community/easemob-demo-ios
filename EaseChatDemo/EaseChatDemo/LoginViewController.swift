@@ -7,7 +7,6 @@
 
 import UIKit
 import EaseChatUIKit
-import SwiftFFDBHotFix
 import WebKit
 import CryptoKit
 
@@ -273,10 +272,7 @@ extension LoginViewController: UITextFieldDelegate {
                 if error == nil,let chatToken = token {
                     self.token = chatToken
                     self.userName = userId.lowercased()
-                    let user = EaseChatProfile()
-                    user.id = userId.lowercased()
-                    self.login(user: user, token: chatToken)
-//                    user.insert()
+                    self.login(userId: userId.lowercased(), token: chatToken)
                 } else {
                     self.loadingView.stopAnimating()
                     self.showToast(toast: (error as? EasemobError)?.message ?? error?.localizedDescription ?? "PasswordError".localized())
@@ -298,11 +294,7 @@ extension LoginViewController: UITextFieldDelegate {
                     if let userId = result?["chatUserName"] as? String,let token = result?["token"] as? String{
                         self?.token = token
                         self?.userName = userId
-                        let user = EaseChatProfile()
-                        user.id = userId
-                        user.avatarURL = (result?["avatarUrl"] as? String) ?? ""
-                        self?.login(user: user, token: token)
-//                        user.insert()
+                        self?.login(userId: userId, token: token)
                     }
                 } else {
                     self?.loadingView.stopAnimating()
@@ -312,105 +304,20 @@ extension LoginViewController: UITextFieldDelegate {
         }
     }
     
-    private func login(user: ChatUserProfileProtocol,token: String) {
-        if let dbPath = FMDBConnection.databasePath,dbPath.isEmpty {
-            FMDBConnection.databasePath = String.documentsPath+"/EaseMobDemo/"+"\(AppKey)/"+user.id+".db"
-        }
-        self.loadCache()
-        ChatUIKitClient.shared.login(user: user, token: token) { [weak self] error in
-            if error == nil {
-                if let profiles = EaseChatProfile.select(where: "id = '\(user.id)'") as? [EaseChatProfile] {
-                    self?.loadingView.stopAnimating()
-                    if profiles.first != nil {
-                        if let profile = profiles.first {
-                            (user as? EaseChatProfile)?.update()
-                            ChatUIKitContext.shared?.currentUser = profiles.first
-                            ChatUIKitContext.shared?.userCache?[profile.id] = profile
-                        }
-                    }
-                    self?.fillCache()
-                    self?.entryHome()
+    private func login(userId: String, token: String) {
+        ChatUIKitClient.shared.login(userId: userId, token: token) { [weak self] error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.loadingView.stopAnimating()
+                if let error {
+                    self.showToast(toast: error.errorDescription ?? "")
                 } else {
-                    ChatClient.shared().userInfoManager?.fetchUserInfo(byId: [user.id]) { [weak self] userInfos, error in
-                        Task { @MainActor [weak self] in
-                            self?.loadingView.stopAnimating()
-                            if error == nil, let userInfo = userInfos?[user.id] {
-                                user.nickname = userInfo.nickname ?? ""
-                                if let avatarUrl = userInfo.avatarUrl, !avatarUrl.isEmpty {
-                                    user.avatarURL = avatarUrl
-                                }
-                                user.remark = ChatClient.shared().contactManager?.getContact(user.id)?.remark ?? ""
-                                ChatUIKitContext.shared?.currentUser = user
-                                ChatUIKitContext.shared?.userCache?[user.id] = user
-                                let profile = EaseChatProfile()
-                                profile.id = user.id
-                                profile.avatarURL = user.avatarURL
-                                profile.nickname = user.nickname
-                                profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                                profile.insert()
-                                self?.fillCache()
-                                self?.entryHome()
-                            } else {
-                                self?.showToast(toast: error?.errorDescription ?? "")
-                            }
-                        }
-                    }
-                }
-            } else {
-                self?.loadingView.stopAnimating()
-                self?.showToast(toast: error?.errorDescription ?? "")
-            }
-        }
-    }
-    
-    private func loadCache() {
-        if let profiles = EaseChatProfile.select(where: nil) as? [EaseChatProfile] {
-            for profile in profiles {
-                if let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(profile.id) {
-                    if conversation.type == .chat {
-                        ChatUIKitContext.shared?.userCache?[profile.id] = profile
-                    }
-                }
-                if profile.id == ChatClient.shared().currentUsername ?? "" {
-                    ChatUIKitContext.shared?.currentUser = profile
-                    ChatUIKitContext.shared?.userCache?[profile.id] = profile
+                    self.entryHome()
                 }
             }
         }
-        
     }
-    
-    private func fillCache() {
 
-        DispatchQueue.global().async {
-            if let groups = ChatClient.shared().groupManager?.getJoinedGroups() {
-                var profiles = [EaseChatProfile]()
-                for group in groups {
-                    let profile = EaseChatProfile()
-                    profile.id = group.groupId
-                    // Unannotated `EMGroup` members import as implicitly unwrapped
-                    // optionals; a cached group may have no name, settings or avatar.
-                    profile.nickname = group.groupName ?? ""
-                    if let ext = group.settings?.ext, !ext.isEmpty {
-                        profile.avatarURL = ext
-                    }
-                    if let avatar = group.groupAvatar, !avatar.isEmpty {
-                        profile.avatarURL = avatar
-                    }
-                    profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                    profiles.append(profile)
-                }
-                ChatUIKitContext.shared?.updateCaches(type: .group, profiles: profiles)
-            }
-            if let users = ChatUIKitContext.shared?.userCache {
-                for user in users.values {
-                    ChatUIKitContext.shared?.userCache?[user.id]?.remark = ChatClient.shared().contactManager?.getContact(user.id)?.remark ?? ""
-                }
-            }
-        }
-    }
-    
-    
     @objc private func getPinCode() {
         self.view.endEditing(true)
         if self.phoneNumber.text?.count ?? 0 != 11,!(self.phoneNumber.text ?? "").chat.isMatchRegular(expression: self.regular) {
@@ -653,70 +560,6 @@ extension UIView {
         let gradientLayer: CAGradientLayer = CAGradientLayer().colors(gradientColors).startPoint(startPoint).endPoint(endPoint).frame(self.bounds).backgroundColor(UIColor.clear.cgColor)
         self.layer.insertSublayer(gradientLayer, at: 0)
         return self
-    }
-    
-}
-
-final class EaseChatProfile:NSObject, ChatUserProfileProtocol, FFObject {
-    
-    static func ignoreProperties() -> [String]? {
-        ["selected"]
-    }
-    
-    static func customColumnsType() -> [String : String]? {
-        nil
-    }
-    
-    static func customColumns() -> [String : String]? {
-        nil
-    }
-    
-    static func primaryKeyColumn() -> String {
-        "primaryId"
-    }
-    
-    var primaryId: Int = 0
-
-    var id: String = ""
-    
-    var remark: String = ""
-    
-    var selected: Bool = false
-    
-    var nickname: String = ""
-    
-    var avatarURL: String = ""
-    
-    public var modifyTime: Int64 = 0
-    
-    public func toJsonObject() -> Dictionary<String, Any>? {
-        ["ease_chat_uikit_user_info":["nickname":self.nickname,"avatarURL":self.avatarURL,"userId":self.id,"remark":""]]
-    }
-    
-    override func setValue(_ value: Any?, forUndefinedKey key: String) {
-        
-    }
-    
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case remark
-        case nickname
-        case avatarURL
-        case selected
-    }
-    
-    override init() {
-        
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        id = try container.decode(String.self, forKey: .id)
-        remark = try container.decode(String.self, forKey: .remark)
-        nickname = try container.decode(String.self, forKey: .nickname)
-        avatarURL = try container.decode(String.self, forKey: .avatarURL)
-        selected = try container.decodeIfPresent(Bool.self, forKey: .selected) ?? false
     }
     
 }

@@ -159,7 +159,7 @@ import UIKit
     @objc public required init(profile: ChatUserProfileProtocol) {
         self.profile = profile
         super.init(nibName: nil, bundle: nil)
-        if self.profile.id == ChatUIKitContext.shared?.currentUserId ?? "", let user = ChatUIKitContext.shared?.currentUser {
+        if self.profile.id == ChatUIKitContext.shared?.currentUserId ?? "", let user = ChatUIKitContext.shared?.userProfile(id: profile.id) {
             self.profile = user
         }
         self.fetchAllContactIds()

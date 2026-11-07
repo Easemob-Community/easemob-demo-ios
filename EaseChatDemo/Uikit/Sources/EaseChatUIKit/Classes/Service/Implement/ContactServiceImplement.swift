@@ -166,12 +166,7 @@ extension ContactServiceImplement: ContactEventsListener {
     }
     
     public func onFriendInfoChanged(_ contact: Contact) {
-        let profile = ChatUserProfile()
-        profile.id = contact.userId
-        profile.nickname = contact.userInfo?.nickname ?? ChatUIKitContext.shared?.userCache?[contact.userId]?.nickname ?? ""
-        profile.remark = contact.remark ?? ChatUIKitContext.shared?.userCache?[contact.userId]?.remark ?? ""
-        profile.avatarURL = contact.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userCache?[contact.userId]?.avatarURL ?? ""
-        ChatUIKitContext.shared?.updateCaches(type: .user, profiles: [profile])
+        ChatUIKitContext.shared?.notifyProfilesChanged()
         self.handleResult(error: nil, type: .fetchContacts, operatorId: contact.userId)
     }
     

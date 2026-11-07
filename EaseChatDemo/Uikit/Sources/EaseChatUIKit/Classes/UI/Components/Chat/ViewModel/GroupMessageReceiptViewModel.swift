@@ -35,7 +35,7 @@ final class GroupReceiptSDKProvider: GroupReceiptProviding {
     }
 
     private func person(id: String, groupId: String, namecard: String?, nickname: String?, avatar: String?, joined: Int64 = 0) -> GroupReceiptPerson {
-        let cached = ChatUIKitContext.shared?.userCache?[id] ?? ChatUIKitContext.shared?.chatCache?[id]
+        let cached = ChatUIKitContext.shared?.userProfile(id: id)
         let names = [namecard, GroupMemberAttributesCache.shared.nickname(groupId: groupId, userId: id), cached?.remark, nickname, cached?.nickname, id]
         let name = names.compactMap { $0 }.first { !$0.isEmpty } ?? id
         return GroupReceiptPerson(id: id, name: name, avatarURL: (avatar?.isEmpty == false ? avatar : cached?.avatarURL) ?? "", joinedTimestamp: joined)

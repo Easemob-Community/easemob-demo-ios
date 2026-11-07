@@ -72,7 +72,6 @@ final class MineMessageListViewController: MessageListController {
     
     deinit {
         PresenceManager.shared.unsubscribe(members: [self.profile.id], completion: nil)
-        ChatUIKitContext.shared?.cleanCache(type: .chat)
         URLPreviewManager.caches.removeAll()
     }
     
@@ -187,18 +186,19 @@ final class MineMessageListViewController: MessageListController {
         self.checkPermissionsAndCall(callType: callType) { [weak self] granted in
             guard granted, let self = self else { return }
 
-            if let cacheUser = ChatUIKitContext.shared?.userCache?[self.profile.id] {
+            if let cacheUser = ChatUIKitContext.shared?.userProfile(id: self.profile.id) {
                 let callProfile = CallUserProfile()
                 callProfile.id = cacheUser.id
                 callProfile.nickname = cacheUser.nickname
                 callProfile.avatarURL = cacheUser.avatarURL
                 CallKitManager.shared.usersCache[self.profile.id] = callProfile
             }
-            if let currentUser = ChatUIKitContext.shared?.currentUser {
+            let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+            if let ownProfile = ChatUIKitContext.shared?.userProfile(id: userId) {
                 let callProfile = CallUserProfile()
-                callProfile.id = ChatClient.shared().currentUsername ?? ""
-                callProfile.nickname = currentUser.nickname
-                callProfile.avatarURL = currentUser.avatarURL
+                callProfile.id = userId
+                callProfile.nickname = ownProfile.nickname
+                callProfile.avatarURL = ownProfile.avatarURL
                 CallKitManager.shared.currentUserInfo = callProfile
                 CallKitManager.shared.usersCache[callProfile.id] = callProfile
                 consoleLogInfo("startSingleCall current user:\(callProfile.nickname)", type: .info)
@@ -212,18 +212,19 @@ final class MineMessageListViewController: MessageListController {
         self.checkPermissionsAndCall(callType: .groupCall) { [weak self] granted in
             guard granted, let self = self else { return }
 
-            if let cacheUser = ChatUIKitContext.shared?.groupCache?[self.profile.id] {
+            if let cacheUser = ChatUIKitContext.shared?.groupProfile(id: self.profile.id) {
                 let callProfile = CallUserProfile()
                 callProfile.id = cacheUser.id
                 callProfile.nickname = cacheUser.nickname
                 callProfile.avatarURL = cacheUser.avatarURL
                 CallKitManager.shared.usersCache[self.profile.id] = callProfile
             }
-            if let currentUser = ChatUIKitContext.shared?.currentUser {
+            let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+            if let ownProfile = ChatUIKitContext.shared?.userProfile(id: userId) {
                 let callProfile = CallUserProfile()
-                callProfile.id = ChatClient.shared().currentUsername ?? ""
-                callProfile.nickname = currentUser.nickname
-                callProfile.avatarURL = currentUser.avatarURL
+                callProfile.id = userId
+                callProfile.nickname = ownProfile.nickname
+                callProfile.avatarURL = ownProfile.avatarURL
                 CallKitManager.shared.currentUserInfo = callProfile
                 CallKitManager.shared.usersCache[callProfile.id] = callProfile
                 consoleLogInfo("startGroupCall current user:\(callProfile.nickname)", type: .info)

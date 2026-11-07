@@ -45,21 +45,8 @@ import UIKit
     }
     
     func refresh(info: ConversationInfo,keyword: String) {
-        var showName = ChatUIKitContext.shared?.userCache?[info.id]?.remark ?? ""
-        if showName.isEmpty {
-            if info.type == .chat {
-                showName = ChatUIKitContext.shared?.userCache?[info.id]?.nickname ?? ""
-            } else {
-                showName = ChatUIKitContext.shared?.groupCache?[info.id]?.nickname ?? ""
-            }
-        }
-        if showName.isEmpty {
-            showName = info.id
-        }
-        var avatarURL = info.avatarURL
-        if avatarURL.isEmpty {
-            avatarURL = ChatUIKitContext.shared?.userCache?[info.id]?.avatarURL ?? ""
-        }
+        let showName = !info.remark.isEmpty ? info.remark : (!info.nickname.isEmpty ? info.nickname : info.id)
+        let avatarURL = info.avatarURL
         self.nickName.attributedText = self.highlightKeywords(keyword: keyword, in: showName)
         self.avatar.image(with: avatarURL, placeHolder: info.type == .chat ? Appearance.conversation.singlePlaceHolder:Appearance.conversation.groupPlaceHolder)
         self.separatorLine.backgroundColor = Theme.style == .dark ? UIColor.theme.neutralColor3:UIColor.theme.neutralColor9

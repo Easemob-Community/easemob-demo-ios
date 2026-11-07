@@ -155,47 +155,15 @@ extension ConversationServiceImplement: ConversationService {
     public func mapper(objects: [ChatConversation]) -> [ConversationInfo] {
         objects.map {
             let conversation = ComponentsRegister.shared.Conversation.init()
+            let profile = ChatUIKitContext.shared?.conversationProfile(conversation: $0)
             conversation.id = $0.conversationId
-            var nickname = ""
-            var profile: ChatUserProfileProtocol?
-            if $0.type == .chat {
-                profile = ChatUIKitContext.shared?.userCache?[$0.conversationId]
-            } else {
-                profile = ChatUIKitContext.shared?.groupCache?[$0.conversationId]
-                if ChatUIKitContext.shared?.groupProfileProvider == nil,ChatUIKitContext.shared?.groupProfileProviderOC == nil {
-                    profile?.nickname = ChatGroup(id: $0.conversationId).groupName ?? ""
-                }
-            }
-            if nickname.isEmpty {
-                nickname = profile?.remark ?? ""
-            }
-            if nickname.isEmpty {
-                nickname = profile?.nickname ?? ""
-            }
-            if nickname.isEmpty {
-                nickname = $0.conversationId
-            }
+            conversation.nickname = profile?.nickname ?? ""
+            conversation.remark = profile?.remark ?? ""
+            conversation.avatarURL = profile?.avatarURL ?? ""
             conversation.unreadCount = UInt($0.unreadMessagesCount)
             conversation.lastMessage = $0.latestMessage
             conversation.type = ChatUserProfileProviderType(rawValue: UInt($0.type.rawValue)) ?? .chat
             conversation.pinned = $0.isPinned
-            if ChatUIKitClient.shared.option.option_UI.saveConversationInfo {
-                if $0.type == .chat {
-                    if let nickName = ChatUIKitContext.shared?.userCache?[$0.conversationId]?.nickname as? String {
-                        conversation.nickname = nickName
-                    }
-                    if let avatarURL = ChatUIKitContext.shared?.userCache?[$0.conversationId]?.avatarURL as? String {
-                        conversation.avatarURL = avatarURL
-                    }
-                } else {
-                    if let nickName = ChatUIKitContext.shared?.groupCache?[$0.conversationId]?.nickname as? String {
-                        conversation.nickname = nickName
-                    }
-                    if let avatarURL = ChatUIKitContext.shared?.groupCache?[$0.conversationId]?.avatarURL as? String {
-                        conversation.avatarURL = avatarURL
-                    }
-                }
-            }
             conversation.doNotDisturb = $0.disturbType != .all
             
             _ = conversation.showContent

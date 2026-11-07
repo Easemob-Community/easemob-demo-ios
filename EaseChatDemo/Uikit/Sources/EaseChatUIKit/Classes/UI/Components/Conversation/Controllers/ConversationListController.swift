@@ -50,26 +50,13 @@ import UIKit
         ConversationList(frame: CGRect(x: 0, y: self.search.frame.maxY+10, width: self.view.frame.width, height: self.view.frame.height-self.search.frame.maxY-10-(self.tabBarController?.tabBar.frame.height ?? 0)), style: .plain)
     }
     
-    /// Update navigation avatar url.
-    /// - Parameter url: The url of avatar.
-    @MainActor @objc(updateWithAvatarURL:)
-    public func updateAvatarURL(_ url: String) {
-        self.navigation.avatarURL = url
-    }
-    
     open override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         self.viewModel?.chatId = ""
         self.view.window?.backgroundColor = .white
-        self.navigation.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL
         self.navigationController?.setNavigationBarHidden(true, animated: false)
-        
     }
-    
-    open override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-    }
-    
+
     open override func viewDidLoad() {
         super.viewDidLoad()
         self.view.addSubViews([self.navigation,self.search,self.conversationList,self.loadingView])
@@ -234,11 +221,6 @@ extension ConversationListController {
         - info: Additional information about the chat.
      */
     @objc open func createChat(profile: ChatUserProfileProtocol, type: ChatConversationType, info: String) {
-        if type == .chat {
-            ChatUIKitContext.shared?.userCache?[profile.id] = profile
-        } else {
-            ChatUIKitContext.shared?.groupCache?[profile.id] = profile
-        }
         if let conversation = self.viewModel?.loadIfNotExistCreate(profile: profile, type: type, text: info) {
             let vc = ComponentsRegister.shared.MessageViewController.init(conversationId: conversation.id , chatType: conversation.type == .chat ? .chat:.group)
             vc.modalPresentationStyle = .fullScreen
@@ -282,11 +264,10 @@ extension ConversationListController {
      */
     @objc open func create(profiles: [ChatUserProfileProtocol]) {
         var name = ""
-        var users = [ChatUserProfileProtocol]()
+        var users = profiles
         let ownerId = ChatUIKitContext.shared?.currentUserId ?? ""
-        if let owner = ChatUIKitContext.shared?.userCache?[ownerId] {
-            users.append(owner)
-            users.append(contentsOf: profiles)
+        if let owner = ChatUIKitContext.shared?.userProfile(id: ownerId) {
+            users.insert(owner, at: 0)
         }
         var ids = [String]()
         for (index,profile) in users.enumerated() {

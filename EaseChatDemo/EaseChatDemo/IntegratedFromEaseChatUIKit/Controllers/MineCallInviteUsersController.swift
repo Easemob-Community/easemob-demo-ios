@@ -57,11 +57,7 @@ final class MineCallInviteUsersController: GroupParticipantsRemoveController {
                             let profile = ChatUserProfile()
                             let id = $0 as String
                             profile.id = id
-                            if let user = ChatUIKitContext.shared?.userCache?[id] {
-                                profile.nickname = user.nickname
-                                profile.avatarURL = user.avatarURL
-                            }
-                            if let user = ChatUIKitContext.shared?.chatCache?[id] {
+                            if let user = ChatUIKitContext.shared?.userProfile(id: id) {
                                 profile.nickname = user.nickname
                                 profile.avatarURL = user.avatarURL
                             }
@@ -71,11 +67,7 @@ final class MineCallInviteUsersController: GroupParticipantsRemoveController {
                         if list.count <= self.pageSize {
                             let profile = ChatUserProfile()
                             profile.id = self.chatGroup.owner
-                            if let user = ChatUIKitContext.shared?.userCache?[self.chatGroup.owner] {
-                                profile.nickname = user.nickname
-                                profile.avatarURL = user.avatarURL
-                            }
-                            if let user = ChatUIKitContext.shared?.chatCache?[self.chatGroup.owner] {
+                            if let user = ChatUIKitContext.shared?.userProfile(id: self.chatGroup.owner) {
                                 profile.nickname = user.nickname
                                 profile.avatarURL = user.avatarURL
                             }
@@ -85,11 +77,7 @@ final class MineCallInviteUsersController: GroupParticipantsRemoveController {
                         self.participants.append(contentsOf: list.map({
                             let profile = ChatUserProfile()
                             profile.id = $0 as String
-                            if let user = ChatUIKitContext.shared?.userCache?[profile.id] {
-                                profile.nickname = user.nickname
-                                profile.avatarURL = user.avatarURL
-                            }
-                            if let user = ChatUIKitContext.shared?.chatCache?[profile.id] {
+                            if let user = ChatUIKitContext.shared?.userProfile(id: profile.id) {
                                 profile.nickname = user.nickname
                                 profile.avatarURL = user.avatarURL
                             }

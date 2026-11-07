@@ -18,9 +18,7 @@ import UIKit
     /// `true` means the SDK is syncing contacts (show loading), `false` means finished (hide loading).
     @objc public var contactSyncClosure: ((Bool) -> Void)?
     
-    public var notifySelf = false
-    
-    
+
     /// ``ContactViewModel`` init method.
     ///   -  ignoreIds: Array of contact ids that already exist in the group.
     @objc(ignoreIds:)
@@ -28,7 +26,7 @@ import UIKit
         self.ignoreContacts = ignoreIds
         super.init()
         NotificationCenter.default.addObserver(self, selector: #selector(addFriendRefreshList), name: Notification.Name("New Friend Chat"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(loadAllContacts), name: Notification.Name(rawValue: cache_update_notification), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(loadAllContacts), name: Notification.Name(rawValue: profile_update_notification), object: nil)
     }
     
     public private(set) weak var driver: IContactListDriver?
@@ -89,18 +87,9 @@ import UIKit
     
     @objc open func loadAllContacts() {
         DispatchQueue.main.async {
-            if self.notifySelf {
-                return
-            }
             if let contacts = ChatClient.shared().contactManager?.getAllContacts() {
                 let infos = self.filterContacts(contacts: contacts)
                 self.driver?.refreshList(infos: infos)
-                if infos.count < 7 {
-                    self.requestDisplayInfos(ids: infos.map({ $0.id }))
-                }
-                DispatchQueue.main.asyncAfter(wallDeadline: .now()+0.3) {
-                    self.notifySelf = false
-                }
             }
         }
     }
@@ -119,18 +108,15 @@ import UIKit
         let infos = users.map({
             let profile = ChatUserProfile()
             profile.id = $0.userId
-            profile.nickname = $0.userInfo?.nickname ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.nickname ?? ""
-            profile.avatarURL = $0.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.avatarURL ?? ""
+            profile.nickname = $0.userInfo?.nickname ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.nickname ?? ""
+            profile.avatarURL = $0.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.avatarURL ?? ""
             var remark = $0.remark ?? ""
             if remark.isEmpty {
-                remark = ChatUIKitContext.shared?.userCache?[$0.userId]?.remark ?? ""
+                remark = ChatUIKitContext.shared?.userProfile(id: $0.userId)?.remark ?? ""
             }
             profile.remark = remark
-            ChatUIKitContext.shared?.userCache?[$0.userId]?.remark = remark
             return profile
         })
-        self.notifySelf = true
-        ChatUIKitContext.shared?.updateCaches(type: .user, profiles: infos)
         return infos
     }
     
@@ -158,13 +144,13 @@ extension ContactViewModel: ChatDataSyncListener {
         self.loadAllContacts()
     }
     
-    public func onChatDataSyncStart() {
+    public func onChatDataSyncStart(type: DataSyncType) {
         self.contactSyncClosure?(true)
     }
     
-    public func onChatDataSyncFinished(error: ChatError?) {
+    public func onChatDataSyncFinished(error: ChatError?, type: DataSyncType) {
         self.contactSyncClosure?(false)
-        self.loadAllContacts()
+        // List data refreshes through the shared debounced profile notification.
     }
 }
 
@@ -273,29 +259,17 @@ extension ContactViewModel: ContactListActionEventsDelegate {
             Task(priority: .background) { [weak self] in
                 guard let `self` = self else { return }
                 let profiles = await ChatUIKitContext.shared?.userProfileProvider?.fetchProfiles(profileIds: ids) ?? []
-                self.cacheProfiles(profiles: profiles)
                 self.driver?.refreshProfiles(infos: profiles)
             }
         }
         if ChatUIKitContext.shared?.userProfileProviderOC != nil {
             ChatUIKitContext.shared?.userProfileProviderOC?.fetchProfiles(profileIds: ids, completion: {[weak self] profiles in
-                self?.cacheProfiles(profiles: profiles)
                 self?.driver?.refreshProfiles(infos: profiles)
             })
 
         }
     }
-    
-    @objc open func cacheProfiles(profiles: [ChatUserProfileProtocol]) {
-        for profile in profiles {
-            if let user = ChatUIKitContext.shared?.userCache?[profile.id] {
-                user.nickname = profile.nickname
-                user.remark = profile.remark
-                user.avatarURL = profile.avatarURL
-            }
-        }
-    }
-    
+
     public func didSelected(indexPath: IndexPath, profile: ChatUserProfileProtocol) {
          self.viewContact?(profile)
     }

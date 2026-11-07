@@ -58,7 +58,8 @@ final class PrivacyPolicyViewController: UIViewController, UITableViewDelegate, 
             controller = CommonWebViewController(urlString: "https://www.easemob.com/demo/third-party-sharing", navigationTitle: self.items[1].localized())
         case 2:
             let id = ChatUIKitContext.shared?.currentUserId ?? ""
-            controller = CommonWebViewController(urlString: Bundle.main.path(forResource: "person-info", ofType: "html") ?? "https://www.easemob.com/demo/personal-info-collection", navigationTitle: self.items[2].localized(), localInfo: ["username": ChatUIKitContext.shared?.currentUser?.nickname ?? id, "avatar": ChatUIKitContext.shared?.currentUser?.avatarURL ?? "", "phone": self.phone, "device": UIDevice.current.model])
+            let ownProfile = ChatUIKitContext.shared?.userProfile(id: id)
+            controller = CommonWebViewController(urlString: Bundle.main.path(forResource: "person-info", ofType: "html") ?? "https://www.easemob.com/demo/personal-info-collection", navigationTitle: self.items[2].localized(), localInfo: ["username": ownProfile?.nickname ?? id, "avatar": ownProfile?.avatarURL ?? "", "phone": self.phone, "device": UIDevice.current.model])
         default: return
         }
         controller.hidesBottomBarWhenPushed = true

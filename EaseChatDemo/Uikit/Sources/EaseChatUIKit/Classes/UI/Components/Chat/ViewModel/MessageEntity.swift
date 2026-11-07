@@ -703,7 +703,7 @@ public let urlPreviewImageHeight = CGFloat(137)
                 })
             } else {
                 if self.message.mention == ChatUIKitContext.shared?.currentUserId ?? "" {
-                    let mentionUser = ChatUIKitContext.shared?.userCache?[ChatUIKitContext.shared?.currentUserId ?? ""]
+                    let mentionUser = ChatUIKitContext.shared?.userProfile(id: ChatUIKitContext.shared?.currentUserId ?? "")
                     var nickname = mentionUser?.remark ?? ""
                     if nickname.isEmpty {
                         nickname = mentionUser?.nickname ?? ""
@@ -999,12 +999,10 @@ public let urlPreviewImageHeight = CGFloat(137)
     
     public lazy var pinInfo: NSAttributedString? = {
         if let pinInfo = self.message.pinnedInfo {
-            var showName = ChatUIKitContext.shared?.chatCache?[pinInfo.operatorId]?.nickname ?? ""
+            let user = pinInfo.operatorId == self.message.from ? self.message.user : ChatUIKitContext.shared?.userProfile(id: pinInfo.operatorId)
+            var showName = user?.remark ?? ""
             if showName.isEmpty {
-                showName = ChatUIKitContext.shared?.userCache?[pinInfo.operatorId]?.remark ?? ""
-            }
-            if showName.isEmpty {
-                showName = ChatUIKitContext.shared?.userCache?[pinInfo.operatorId]?.nickname ?? ""
+                showName = user?.nickname ?? ""
             }
             if showName.isEmpty {
                 showName = pinInfo.operatorId
@@ -1035,21 +1033,15 @@ extension ChatMessage {
                 user.remark = senderInfo.remark ?? ""
                 return user
             }
-            let cacheUser = ChatUIKitContext.shared?.userCache?[self.from]
-            if cacheUser != nil,let remark = cacheUser?.remark,!remark.isEmpty {
-                ChatUIKitContext.shared?.chatCache?[self.from]?.remark = remark
+            if let values = self.ext?["ease_chat_uikit_user_info"] as? [String: Any] {
+                let profile = ChatUserProfile()
+                profile.id = self.from
+                profile.nickname = values["nickname"] as? String ?? ""
+                profile.avatarURL = values["avatarURL"] as? String ?? values["avatarUrl"] as? String ?? ""
+                profile.remark = values["remark"] as? String ?? ""
+                return profile
             }
-            let chatUser = ChatUIKitContext.shared?.chatCache?[self.from]
-            if chatUser?.nickname.isEmpty ?? true {
-                chatUser?.nickname = cacheUser?.nickname ?? ""
-            }
-            if from == ChatClient.shared().currentUsername ?? "",let currentUser = ChatUIKitContext.shared?.currentUser {
-                return currentUser
-            }
-            if chatUser == nil,cacheUser != nil {
-                return cacheUser
-            }
-            return chatUser
+            return ChatUIKitContext.shared?.userProfile(id: self.from)
         }()
         guard self.chatType == .groupChat else { return base }
         let fallback = ChatUserProfile()
@@ -1184,8 +1176,9 @@ extension ChatMessage {
                             return "All"
                         }
                     } else if let atListArray = atList as? [String] {
-                        if ChatClient.shared().currentUsername?.count ?? 0 > 0 && atListArray.contains((ChatClient.shared().currentUsername ?? "").lowercased()) {
-                            return (ChatUIKitContext.shared?.currentUser?.id ?? self.from).lowercased()
+                        let userId = (ChatUIKitContext.shared?.currentUserId ?? "").lowercased()
+                        if !userId.isEmpty, atListArray.contains(userId) {
+                            return userId
                         }
                     }
                 }

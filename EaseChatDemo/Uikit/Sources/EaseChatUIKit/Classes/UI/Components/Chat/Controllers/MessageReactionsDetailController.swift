@@ -91,36 +91,16 @@ import UIKit
                     self.users.append(contentsOf: userList.map({
                         let profile = ChatUserProfile()
                         profile.id = $0
-                        if self.message.chatType == .groupChat {
-                            var user = ChatUIKitContext.shared?.chatCache?[self.message.from]
-                            if $0 == ChatUIKitContext.shared?.currentUserId ?? "" {
-                                user = ChatUIKitContext.shared?.currentUser
-                            }
-                            profile.nickname = user?.nickname ?? ""
-                            profile.avatarURL = user?.avatarURL ?? ""
-                        } else {
-                            var user = ChatUIKitContext.shared?.chatCache?[$0]
-                            if $0 == ChatUIKitContext.shared?.currentUserId ?? "" {
-                                user = ChatUIKitContext.shared?.currentUser
-                            } else {
-                                if user == nil {
-                                    user = ChatUIKitContext.shared?.userCache?[$0]
-                                    if user == nil {
-                                        user = ChatUIKitContext.shared?.userCache?[$0]
-                                    }
-                                }
-                            }
-                            profile.nickname = user?.nickname ?? ""
-                            profile.avatarURL = user?.avatarURL ?? ""
-                        }
+                        let user = $0 == self.message.from ? self.message.user : ChatUIKitContext.shared?.userProfile(id: $0)
+                        profile.nickname = user?.nickname ?? ""
+                        profile.remark = user?.remark ?? ""
+                        profile.avatarURL = user?.avatarURL ?? ""
                         return profile
                     }))
                     let index = self.users.firstIndex { $0.id == ChatUIKitContext.shared?.currentUserId ?? "" }
-                    if let idx = index {
-                        self.users.remove(at: idx)
-                        if let currentUser = ChatUIKitContext.shared?.currentUser {
-                            self.users.insert(currentUser, at: 0)
-                        }
+                    if let index {
+                        let profile = self.users.remove(at: index)
+                        self.users.insert(profile, at: 0)
                     }
                     self.reactionUserList.reloadData()
                 }
@@ -160,7 +140,6 @@ import UIKit
             if !unknownInfoIds.isEmpty {
                 Task {
                     let profiles = await ChatUIKitContext.shared?.userProfileProvider?.fetchProfiles(profileIds: unknownInfoIds) ?? []
-                    self.fillCache(profiles: profiles)
                     DispatchQueue.main.async {
                         self.processCacheProfiles(values: profiles)
                     }
@@ -169,24 +148,11 @@ import UIKit
         } else {
             ChatUIKitContext.shared?.userProfileProviderOC?.fetchProfiles(profileIds: unknownInfoIds, completion: { [weak self] profiles in
                 guard let `self` = self else { return }
-                self.fillCache(profiles: profiles)
                 self.processCacheProfiles(values: profiles)
             })
         }
     }
-    
-    private func fillCache(profiles: [ChatUserProfileProtocol]) {
-        for profile in profiles {
-            if let profile = ChatUIKitContext.shared?.userCache?[profile.id] {
-                profile.nickname = profile.nickname
-                profile.remark = profile.remark
-                profile.avatarURL = profile.avatarURL
-            } else {
-                ChatUIKitContext.shared?.userCache?[profile.id] = profile
-            }
-        }
-    }
-    
+
     private func processCacheInfos(values: [String]) {
         for user in self.users {
             for value in values {

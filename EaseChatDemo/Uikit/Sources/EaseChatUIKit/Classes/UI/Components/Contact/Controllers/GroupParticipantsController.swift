@@ -135,7 +135,7 @@ import UIKit
         
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
-        NotificationCenter.default.addObserver(self, selector: #selector(refreshList), name: Notification.Name(rawValue: cache_update_notification), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshList), name: Notification.Name(rawValue: profile_update_notification), object: nil)
         self.service.bindGroupEventsListener(listener: self)
     }
     
@@ -633,7 +633,6 @@ extension GroupParticipantsController: UITableViewDelegate,UITableViewDataSource
             if !unknownInfoIds.isEmpty {
                 Task {
                     let profiles = await ChatUIKitContext.shared?.userProfileProvider?.fetchProfiles(profileIds: unknownInfoIds) ?? []
-                    self.fillCache(profiles: profiles)
                     DispatchQueue.main.async {
                         self.processCacheProfiles(values: profiles)
                     }
@@ -642,24 +641,11 @@ extension GroupParticipantsController: UITableViewDelegate,UITableViewDataSource
         } else {
             ChatUIKitContext.shared?.userProfileProviderOC?.fetchProfiles(profileIds: unknownInfoIds, completion: { [weak self] profiles in
                 guard let `self` = self else { return }
-                self.fillCache(profiles: profiles)
                 self.processCacheProfiles(values: profiles)
             })
         }
     }
-    
-    private func fillCache(profiles: [ChatUserProfileProtocol]) {
-        for profile in profiles {
-            if let cached = ChatUIKitContext.shared?.userCache?[profile.id] {
-                cached.nickname = profile.nickname
-                cached.remark = profile.remark
-                cached.avatarURL = profile.avatarURL
-            } else {
-                ChatUIKitContext.shared?.userCache?[profile.id] = profile
-            }
-        }
-    }
-    
+
     private func processCacheInfos(values: [String]) {
         for participant in self.participants {
             for value in values {

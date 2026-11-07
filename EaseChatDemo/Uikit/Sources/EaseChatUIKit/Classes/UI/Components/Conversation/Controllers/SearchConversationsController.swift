@@ -83,10 +83,12 @@ import UIKit
     
     deinit {
         self.searchWorkItem?.cancel()
+        NotificationCenter.default.removeObserver(self)
     }
     
     open override func viewDidLoad() {
         super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshSDKData), name: Notification.Name(profile_update_notification), object: nil)
         // Do any additional setup after loading the view.
         self.view.backgroundColor = UIColor.theme.neutralColor98
         self.view.addSubViews([self.searchHeader,self.searchList])
@@ -128,15 +130,21 @@ import UIKit
         self.searchHeader.searchField.becomeFirstResponder()
     }
     
+    @objc private func refreshSDKData() {
+        let conversations = ChatClient.shared().chatManager?.getAllConversations(true) ?? []
+        self.datas = ConversationServiceImplement().mapper(objects: conversations)
+        self.loadAllContacts()
+    }
+
     /// Loads contacts from the local database when no contacts were injected on initialization.
     @objc open func loadAllContacts() {
-        guard let contacts = ChatClient.shared().contactManager?.getAllContacts() else { return }
+        let contacts = ChatClient.shared().contactManager?.getAllContacts() ?? []
         self.rawContacts = contacts.map {
             let profile = ChatUserProfile()
             profile.id = $0.userId
-            profile.nickname = $0.userInfo?.nickname ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.nickname ?? ""
-            profile.avatarURL = $0.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.avatarURL ?? ""
-            profile.remark = $0.remark ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.remark ?? ""
+            profile.nickname = $0.userInfo?.nickname ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.nickname ?? ""
+            profile.avatarURL = $0.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.avatarURL ?? ""
+            profile.remark = $0.remark ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.remark ?? ""
             return profile
         }
         self.refreshSearchResults()
@@ -150,27 +158,15 @@ import UIKit
     
     /// Exact display name used by ``ConversationSearchCell/refresh(info:keyword:)``.
     private func displayName(of info: ConversationInfo) -> String {
-        var showName = ChatUIKitContext.shared?.userCache?[info.id]?.remark ?? ""
-        if showName.isEmpty {
-            if info.type == .chat {
-                showName = ChatUIKitContext.shared?.userCache?[info.id]?.nickname ?? ""
-            } else {
-                showName = ChatUIKitContext.shared?.groupCache?[info.id]?.nickname ?? ""
-            }
-        }
-        if showName.isEmpty {
-            showName = info.id
-        }
-        return showName
+        !info.remark.isEmpty ? info.remark : (!info.nickname.isEmpty ? info.nickname : info.id)
     }
     
     /// Exact display name used by ``ContactCell/refresh(profile:keyword:)``.
-    /// - Note: ``ContactCell`` is cache-first and never falls back to the fields on ``profile``,
-    /// so filtering must mirror that order or invisible fields(like an SDK-only remark) would leak into results.
+    /// Filtering and contact cells read the same SDK-owned profile.
     private func displayName(of profile: ChatUserProfileProtocol) -> String {
-        var showName = ChatUIKitContext.shared?.userCache?[profile.id]?.remark ?? ""
+        var showName = ChatUIKitContext.shared?.userProfile(id: profile.id)?.remark ?? ""
         if showName.isEmpty {
-            showName = ChatUIKitContext.shared?.userCache?[profile.id]?.nickname ?? ""
+            showName = ChatUIKitContext.shared?.userProfile(id: profile.id)?.nickname ?? ""
         }
         if showName.isEmpty {
             showName = profile.id
@@ -387,7 +383,7 @@ extension SearchConversationsController: UITableViewDelegate,UITableViewDataSour
                 cell = SearchHistoryMessageCell(style: .default, reuseIdentifier: "EaseUIKit_SearchHistoryMessageCell")
             }
             if let item = self.searchMessages[safe: indexPath.row],let info = item.user {
-                info.remark = ChatUIKitContext.shared?.userCache?[item.from]?.remark ?? ""
+                info.remark = ChatUIKitContext.shared?.userProfile(id: item.from)?.remark ?? ""
                 cell?.refresh(message: item, info: info, keyword: self.searchText)
             }
             cell?.selectionStyle = .none
