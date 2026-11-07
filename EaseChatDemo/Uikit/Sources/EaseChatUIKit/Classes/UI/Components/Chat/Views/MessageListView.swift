@@ -364,7 +364,7 @@ public let MessageInputBarHeight = CGFloat(52)
             }
         }
         
-        NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: cache_update_notification), object: nil, queue: .main) {  [weak self] notification in
+        NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: profile_update_notification), object: nil, queue: .main) {  [weak self] notification in
             self?.messageList.reloadData()
         }
     }

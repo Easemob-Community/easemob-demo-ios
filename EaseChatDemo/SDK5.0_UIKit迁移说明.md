@@ -102,35 +102,38 @@ var conversation: ChatConversation? {
 
 ## 6. 新增数据同步监听 / 未读数刷新
 
-`MainViewController.swift` 新增对 `ChatDataSyncListener` 的实现：
+`ChatUIKitClient` 统一转发数据库打开、同步开始和同步完成回调。监听器的完成回调签名为：
 
 ```swift
-extension MainViewController: ChatDataSyncListener {
-    var interestedSyncType: EaseChatUIKit.DataSyncType { [.conversations, .contacts] }
-    func onChatDatabaseOpened() { self.chats.loadingView.stopAnimating() }
-    func onChatDataSyncStart(type: EaseChatUIKit.DataSyncType) { }
-    func onChatDataSyncFinished(error: EaseChatUIKit.ChatError?, type: EaseChatUIKit.DataSyncType) {
-        if error == nil {
-            switch type {
-            case .conversations:
-                self.onConversationsUnreadCountUpdate(unreadCount: UInt(ChatClient.shared().chatManager?.getUnreadMessageCount() ?? 0))
-            default:
-                break
-            }
-        }
-    }
-}
+func onChatDataSyncFinished(error: ChatError?, type: DataSyncType)
 ```
 
-登录后数据库尚未打开完成前，会话列表页会展示 `loadingView`（`viewDidLoad` 中提前调用
-`self.chats.loadingView.startAnimating()`），待 `onChatDatabaseOpened` 回调后关闭，用于遮盖登录到
-数据同步完成之间的空窗期。
+会话和联系人 ViewModel 的同步回调仅更新加载状态。`.conversations`、`.contacts`、
+`.joinedGroups` 的完成事件统一进入 1 秒尾沿防抖：每次完成重置计时器，最后一次完成后
+1 秒发布一次 `profile_update_notification`。同步失败也会刷新已可用的本地数据。
 
-`onChatDataSyncFinished` 中针对 `.conversations` 类型的同步结果补充了未读数刷新逻辑：会话数据
-同步成功后主动调用 `onConversationsUnreadCountUpdate`，用当前 `getUnreadMessageCount()` 的结果
-刷新 Tab 角标。这是为了解决登录初期——数据同步尚未完成时——角标可能因本地会话数据不全而显示不准确
-的问题，与第 6 节前面提到的 `ConversationEmergencyListener` 已读回执刷新是同一诉求的两处触发点
-（一个在数据同步完成时，一个在收到已读回执时），二者共同保证未读角标在各类时机下都能及时刷新。
+会话列表、联系人列表、已加入群组、会话搜索及打开的聊天页面收到通知后重新读取 SDK
+资料；AppDelegate 通过同一通知刷新未读角标。退出登录、重新登录和数据库重新打开时
+取消尚未执行的刷新，延迟任务也校验当前账号，避免上一账号的任务触发刷新。
+
+### 资料读取（移除 UIKit 的三份资料缓存）
+
+- 消息资料统一由 `ChatMessage.user` 解析：`senderInfo` 存在时优先使用；否则读取
+  `ext["ease_chat_uikit_user_info"]`，最后通过 `userInfoManager.getUserInfo(byIds:)`
+  读取 SDK 本地资料。消息中的旧资料不再写入联系人资料。
+- 普通用户资料通过 `ChatUIKitContext.userProfile(id:)` 读取 SDK 用户资料，备注来自
+  `contactManager.getContact`；群组资料通过 `groupManager.getJoinedGroups()` 读取。
+- 会话初次加载和增量更新共用 `conversationProfile(conversation:)`：名称和头像分别优先
+  使用 `conversationName()`、`conversationAvatar()`；缺失时单聊回退用户资料，群聊回退
+  已加入群组资料。联系人备注的展示优先级继续保留。
+- 删除 `chatCache`、`userCache`、`groupCache`、`EaseChatUIKitCacheType` 及相关
+  `cleanCache` / `updateCache` / `updateCaches` / `updateChatAndUserTypeCaches` 接口。
+  集成代码应写入 SDK 对应的数据源；需要主动通知页面时调用 `notifyProfilesChanged()`。
+  登录不再从 Demo 的独立资料表恢复这三份缓存。
+
+回归检查运行方式：`python3 Tests/ProfileMigration/verify.py`（在仓库根目录运行）。
+检查直接编译实际的 Swift 资料解析与防抖实现，SDK 接口使用测试替身；SDK 接口兼容性
+由 Xcode 工作区构建验证，登录账号下的端到端同步仍需运行 App 验证。
 
 `ConversationEmergencyListener` 回调中新增已读类型判断，登录后/收到已读回执时主动刷新未读数：
 
@@ -142,10 +145,13 @@ if type == .read {
 
 ## 7. 用户资料局部更新方式调整
 
-`PersonalInfoViewController.swift` 中更新昵称/头像时，不再通过
-`currentUser?.toJsonObject()` + `setValuesForKeys` 整体转存后再改字段，而是直接基于
-`ChatUIKitContext.shared?.currentUser` 构造新的 `EaseChatProfile` 并设置目标字段，语义更清晰，
-避免 KVC 方式对新增字段的隐式依赖。
+登录通过 `ChatUIKitClient.login(userId:token:completion:)` 提交用户 ID。SDK 登录成功后，
+异步调用 `userInfoManager.fetchUserInfo(byId:)` 拉取该账号已有的服务端资料。拉取成功后，
+页面收到资料变更通知，通过 `currentUserId` 和 `userProfile(id:)` 重新读取 SDK 资料。
+拉取失败时仍可进入主界面。旧的 `login(user:token:completion:)` 入口仅使用传入资料的 ID。
+
+个人资料页修改昵称和头像时，分别调用 SDK 的 `updateOwnUserInfo` 更新对应字段，
+成功后通知页面刷新。UIKit 和 Demo 的本地资料表无需维护额外的本人资料副本。
 
 ## 8. 已知问题：状态栏高度求值时机（尚未修复）
 

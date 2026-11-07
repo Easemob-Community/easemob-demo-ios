@@ -87,11 +87,17 @@ import UIKit
     open override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         self.navigationController?.setNavigationBarHidden(true, animated: false)
-        self.navigation.avatarURL = ChatUIKitContext.shared?.currentUser?.avatarURL
+        self.refreshOwnAvatar()
     }
     
+    @objc private func refreshOwnAvatar() {
+        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+        self.navigation.avatarURL = ChatUIKitContext.shared?.userProfile(id: userId)?.avatarURL
+    }
+
     open override func viewDidLoad() {
         super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshOwnAvatar), name: Notification.Name(profile_update_notification), object: nil)
         self.view.addSubViews([self.navigation,self.search,self.contactList,self.loadingView])
         if self.style != .newGroup || self.style != .newChat || self.style != .shareContact {
             self.navigation.separateLine.isHidden = true

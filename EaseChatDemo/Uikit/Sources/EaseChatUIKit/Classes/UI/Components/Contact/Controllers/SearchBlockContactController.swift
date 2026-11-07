@@ -73,9 +73,9 @@ import UIKit
             let infos = users.map({
                 let profile = ChatUserProfile()
                 profile.id = $0
-                profile.nickname = ChatUIKitContext.shared?.userCache?[$0]?.nickname ?? ""
-                profile.avatarURL = ChatUIKitContext.shared?.userCache?[$0]?.avatarURL ?? ""
-                profile.remark = ChatUIKitContext.shared?.userCache?[$0]?.remark ?? ""
+                profile.nickname = ChatUIKitContext.shared?.userProfile(id: $0)?.nickname ?? ""
+                profile.avatarURL = ChatUIKitContext.shared?.userProfile(id: $0)?.avatarURL ?? ""
+                profile.remark = ChatUIKitContext.shared?.userProfile(id: $0)?.remark ?? ""
                 return profile
             })
             self.rawDatas.removeAll()

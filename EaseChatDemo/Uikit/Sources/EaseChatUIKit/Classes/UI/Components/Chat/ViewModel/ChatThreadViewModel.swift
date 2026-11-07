@@ -71,7 +71,7 @@ import UIKit
     
     @objc open func threadCreateAlert() {
         let id = self.chatThread?.owner ?? ""
-        let nickname = ChatUIKitContext.shared?.chatCache?[id]?.nickname ?? ""
+        let nickname = ChatUIKitContext.shared?.userProfile(id: id)?.nickname ?? ""
         if let createMessage = self.constructMessage(text: "\(nickname)"+"CreateThreadAlert".chat.localize, type: .alert) {
             var threadMessages = self.driver?.dataSource ?? []
             createMessage.localTime = Int64(self.chatThread?.createAt ?? Int(Date().timeIntervalSince1970))
@@ -184,7 +184,8 @@ import UIKit
         
         var ext = extensionInfo
         if ChatUIKitClient.shared.option.option_UI.compatibilityModeForUserInfo {
-            let json = ChatUIKitContext.shared?.currentUser?.toJsonObject() ?? [:]
+            let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+            let json = ChatUIKitContext.shared?.userProfile(id: userId)?.toJsonObject() ?? [:]
             ext.merge(json) { _, new in
                 new
             }

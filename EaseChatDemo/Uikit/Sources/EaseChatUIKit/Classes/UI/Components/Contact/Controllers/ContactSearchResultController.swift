@@ -107,9 +107,9 @@ import UIKit
             var infos = contacts.map({
                 let profile = ChatUserProfile()
                 profile.id = $0.userId
-                profile.nickname = $0.userInfo?.nickname ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.nickname ?? ""
-                profile.avatarURL = $0.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.avatarURL ?? ""
-                profile.remark = $0.remark ?? ChatUIKitContext.shared?.userCache?[$0.userId]?.remark ?? ""
+                profile.nickname = $0.userInfo?.nickname ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.nickname ?? ""
+                profile.avatarURL = $0.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.avatarURL ?? ""
+                profile.remark = $0.remark ?? ChatUIKitContext.shared?.userProfile(id: $0.userId)?.remark ?? ""
                 return profile
             })
             self.rawDatas.removeAll()

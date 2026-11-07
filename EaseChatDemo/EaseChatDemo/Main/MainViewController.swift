@@ -8,7 +8,6 @@
 import UIKit
 import EaseChatUIKit
 import EaseCallUIKit
-import SwiftFFDBHotFix
 import AgoraRtcKit
 
 final class MainViewController: UITabBarController {
@@ -54,7 +53,9 @@ final class MainViewController: UITabBarController {
             self.tabBar.insetsLayoutMarginsFromSafeArea = false
         }
         self.tabBarController?.additionalSafeAreaInsets = .zero
-        self.callKitSet()
+        CallKitManager.shared.profileProvider = self
+        self.refreshCallProfile()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshCallProfile), name: Notification.Name(profile_update_notification), object: nil)
         self.setupDataProvider()
         self.loadViewControllers()
         // Do any additional setup after loading the view.
@@ -88,16 +89,15 @@ final class MainViewController: UITabBarController {
         ChatUIKitContext.shared?.groupProfileProviderOC = nil
     }
     
-    private func callKitSet() {
-        //接入环信CallKit
-        if let currentUser = ChatUIKitContext.shared?.currentUser {
-            let profile = CallUserProfile()
-            profile.id = currentUser.id
-            profile.nickname = currentUser.nickname
-            profile.avatarURL = currentUser.avatarURL
-            CallKitManager.shared.currentUserInfo = profile
-        }
-        CallKitManager.shared.profileProvider = self
+    @objc private func refreshCallProfile() {
+        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+        guard !userId.isEmpty else { return }
+        let ownProfile = ChatUIKitContext.shared?.userProfile(id: userId)
+        let profile = CallUserProfile()
+        profile.id = userId
+        profile.nickname = ownProfile?.nickname ?? ""
+        profile.avatarURL = ownProfile?.avatarURL ?? ""
+        CallKitManager.shared.currentUserInfo = profile
     }
 
     private func loadViewControllers() {
@@ -242,66 +242,14 @@ extension MainViewController: ChatUserProfileProvider,ChatGroupProfileProvider {
     }
     
     private func requestUserInfos(profileIds: [String]) async -> [ChatUserProfileProtocol]? {
-        var unknownIds = [String]()
-        var resultProfiles = [ChatUserProfileProtocol]()
-        for profileId in profileIds {
-            if let profile = ChatUIKitContext.shared?.userCache?[profileId] {
-                resultProfiles.append(profile)
-            } else {
-                unknownIds.append(profileId)
-            }
-        }
-        if unknownIds.isEmpty {
-            return resultProfiles
-        }
-        let result = await ChatClient.shared().userInfoManager?.fetchUserInfo(byId: unknownIds)
-        if result?.1 == nil,let infoMap = result?.0 {
-            for (userId,info) in infoMap {
-                let profile = EaseChatProfile()
-                let nickname = info.nickname ?? ""
-                profile.id = userId
-                profile.nickname = nickname
-                profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                if let remark = ChatClient.shared().contactManager?.getContact(userId)?.remark {
-                    profile.remark = remark
-                }
-                profile.avatarURL = info.avatarUrl ?? ""
-                resultProfiles.append(profile)
-                if (ChatUIKitContext.shared?.userCache?[userId]) != nil {
-                    profile.updateFFDB()
-                } else {
-                    profile.insert()
-                }
-                ChatUIKitContext.shared?.userCache?[userId] = profile
-            }
-            return resultProfiles
-        }
-        return []
+        profileIds.compactMap { ChatUIKitContext.shared?.userProfile(id: $0) }
     }
     
     private func requestGroupsInfo(groupIds: [String]) async -> [ChatUserProfileProtocol]? {
-        var resultProfiles = [ChatUserProfileProtocol]()
         let groups = ChatClient.shared().groupManager?.getJoinedGroups() ?? []
-        for groupId in groupIds {
-            if let group = groups.first(where: { $0.groupId == groupId }) {
-                let profile = EaseChatProfile()
-                profile.id = groupId
-                // `EMGroup` carries no nullability annotations, so Swift imports its members as
-                // implicitly unwrapped optionals. A group read from the local cache can have no
-                // name, settings or avatar, and reading those traps at runtime.
-                profile.nickname = group.groupName ?? ""
-                if let ext = group.settings?.ext, !ext.isEmpty {
-                    profile.avatarURL = ext
-                }
-                if let avatar = group.groupAvatar, !avatar.isEmpty {
-                    profile.avatarURL = avatar
-                }
-                resultProfiles.append(profile)
-                ChatUIKitContext.shared?.groupCache?[groupId] = profile
-            }
-
+        return groups.filter { groupIds.contains($0.groupId) }.compactMap {
+            ChatUIKitContext.shared?.groupProfile(group: $0)
         }
-        return resultProfiles
     }
 }
 //MARK: - ConversationEmergencyListener

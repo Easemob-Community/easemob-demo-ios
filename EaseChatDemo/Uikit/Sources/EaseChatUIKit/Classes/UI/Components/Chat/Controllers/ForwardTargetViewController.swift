@@ -131,9 +131,9 @@ import UIKit
     private func profile(from contact: Contact) -> ChatUserProfileProtocol {
         let profile = ChatUserProfile()
         profile.id = contact.userId
-        profile.nickname = contact.userInfo?.nickname ?? ChatUIKitContext.shared?.userCache?[contact.userId]?.nickname ?? ""
+        profile.nickname = contact.userInfo?.nickname ?? ChatUIKitContext.shared?.userProfile(id: contact.userId)?.nickname ?? ""
         profile.remark = contact.remark ?? ""
-        profile.avatarURL = contact.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userCache?[contact.userId]?.avatarURL ?? ""
+        profile.avatarURL = contact.userInfo?.avatarUrl ?? ChatUIKitContext.shared?.userProfile(id: contact.userId)?.avatarURL ?? ""
         return profile
     }
     
@@ -141,17 +141,7 @@ import UIKit
         // SDK 5.0 removed the server fetch API. Joined groups are synced by the SDK after login,
         // so read them all from the local database via the group service.
         let groups = self.groupService.loadLocalJoinedGroups()
-        self.datas = groups.map {
-            let profile = ChatUserProfile()
-            profile.id = $0.groupId
-            // Unannotated `EMGroup` members import as implicitly unwrapped optionals.
-            profile.nickname = $0.groupName ?? ""
-            profile.avatarURL = ChatUIKitContext.shared?.groupCache?[$0.groupId]?.avatarURL ?? ""
-            if let avatar = $0.groupAvatar, !avatar.isEmpty {
-                profile.avatarURL = avatar
-            }
-            return profile
-        }
+        self.datas = groups.compactMap { ChatUIKitContext.shared?.groupProfile(group: $0) }
         self.targetsList.reloadData()
     }
 }

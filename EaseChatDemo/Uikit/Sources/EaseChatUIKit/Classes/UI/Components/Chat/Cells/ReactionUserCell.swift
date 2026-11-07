@@ -65,29 +65,9 @@ import UIKit
     @objc open func refresh(profile: ChatUserProfileProtocol) {
         self.nickName.textColor = Theme.style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1
         
-        var nickName = profile.id
-        var avatarURL = profile.avatarURL
-        var info = ChatUIKitContext.shared?.chatCache?[profile.id]
-        if info == nil {
-            info = ChatUIKitContext.shared?.userCache?[profile.id]
-        }
-        if let info = info {
-            if !info.nickname.isEmpty {
-                nickName = info.nickname
-            }
-            if !info.remark.isEmpty {
-                nickName = info.remark
-            }
-            if !info.avatarURL.isEmpty {
-                avatarURL = info.avatarURL
-            }
-        }
+        let nickName = !profile.remark.isEmpty ? profile.remark : (!profile.nickname.isEmpty ? profile.nickname : profile.id)
         self.nickName.text = nickName
-        if !profile.avatarURL.isEmpty {
-            self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
-        } else {
-            self.avatar.image(with: "", placeHolder: Appearance.conversation.singlePlaceHolder)
-        }
+        self.avatar.image(with: profile.avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
         var image = UIImage(chatNamed: "reaction_trash")
         if Theme.style == .dark {
             image = image?.withTintColor(UIColor.theme.neutralColor7)

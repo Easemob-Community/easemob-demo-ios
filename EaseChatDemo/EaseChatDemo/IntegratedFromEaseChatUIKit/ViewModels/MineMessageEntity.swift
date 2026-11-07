@@ -186,7 +186,7 @@ class MineMessageEntity: MessageEntity {
                 }
             } else {
                 if self.message.mention == ChatUIKitContext.shared?.currentUserId ?? "" {
-                    let mentionUser = ChatUIKitContext.shared?.userCache?[ChatUIKitContext.shared?.currentUserId ?? ""]
+                    let mentionUser = ChatUIKitContext.shared?.userProfile(id: ChatUIKitContext.shared?.currentUserId ?? "")
                     var nickname = mentionUser?.remark ?? ""
                     if nickname.isEmpty {
                         nickname = mentionUser?.nickname ?? ""

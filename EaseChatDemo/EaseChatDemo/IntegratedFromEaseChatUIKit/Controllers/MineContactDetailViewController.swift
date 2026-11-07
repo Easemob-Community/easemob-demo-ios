@@ -8,7 +8,6 @@
 import UIKit
 import EaseChatUIKit
 import EaseCallUIKit
-import SwiftFFDBHotFix
 import AVFoundation
 
 final class MineContactDetailViewController: ContactInfoViewController {
@@ -22,7 +21,7 @@ final class MineContactDetailViewController: ContactInfoViewController {
     }
     
     override func dataSource() -> [DetailInfo] {
-        let json: [String : Any] = ["title":"contact_details_button_remark".localized(),"detail":ChatUIKitContext.shared?.userCache?[self.profile.id]?.remark ?? "","withSwitch": false,"switchValue":false]
+        let json: [String : Any] = ["title":"contact_details_button_remark".localized(),"detail":ChatUIKitContext.shared?.userProfile(id: self.profile.id)?.remark ?? "","withSwitch": false,"switchValue":false]
         let info = self.dictionaryMapToInfo(json: json)
         var infos = super.dataSource()
         infos.insert(info, at: 0)
@@ -126,13 +125,12 @@ final class MineContactDetailViewController: ContactInfoViewController {
         self.datas.first(where: { $0.title == "contact_details_button_remark".localized() })?.detail = remark
         self.menuList.reloadData()
         self.profile.remark = remark
-        ChatUIKitContext.shared?.userCache?[self.profile.id]?.remark = remark
         self.updateRemark(remark: remark)
         
     }
     
     private func updateHeader() {
-        if let user = ChatUIKitContext.shared?.userCache?[self.profile.id] {
+        if let user = ChatUIKitContext.shared?.userProfile(id: self.profile.id) {
             if !user.nickname.isEmpty {
                 self.header.nickName.text = user.nickname
             }
@@ -152,37 +150,9 @@ final class MineContactDetailViewController: ContactInfoViewController {
             DispatchQueue.main.async {
                 if let info = infoMap?[userId],error == nil {
                     
-                    var remark = ChatUIKitContext.shared?.userCache?[userId]?.remark ?? ""
-                    if remark.isEmpty {
-                        remark = info.nickname ?? userId
-                    }
-                    if let profiles = EaseChatProfile.select(where: "id = ?",values: [userId]) as? [EaseChatProfile],let profile = profiles.first(where: { $0.id == userId }) {
-                        profile.nickname = info.nickname ?? ""
-                        profile.avatarURL = info.avatarUrl ?? ""
-                        profile.updateFFDB()
-                        ChatUIKitContext.shared?.userCache?[userId]?.nickname = info.nickname ?? ""
-                        ChatUIKitContext.shared?.userCache?[userId]?.avatarURL = info.avatarUrl ?? ""
-                        ChatUIKitContext.shared?.chatCache?[userId]?.nickname = info.nickname ?? ""
-                        ChatUIKitContext.shared?.chatCache?[userId]?.avatarURL = info.avatarUrl ?? ""
-                        ChatUIKitContext.shared?.updateCache(type: .user, profile: profile)
-                    } else {
-                        let profile = EaseChatProfile()
-                        profile.id = userId
-                        profile.nickname = info.nickname ?? ""
-                        profile.avatarURL = info.avatarUrl ?? ""
-                        profile.modifyTime = Int64(Date().timeIntervalSince1970*1000)
-                        profile.insert()
-                        if (ChatUIKitContext.shared?.userCache?[userId]) != nil {
-                            ChatUIKitContext.shared?.userCache?[userId]?.nickname = info.nickname ?? ""
-                            ChatUIKitContext.shared?.userCache?[userId]?.avatarURL = info.avatarUrl ?? ""
-                        } else {
-                            ChatUIKitContext.shared?.userCache?[userId] = profile
-                        }
-                        ChatUIKitContext.shared?.chatCache?[userId]?.nickname = info.nickname ?? ""
-                        ChatUIKitContext.shared?.chatCache?[userId]?.avatarURL = info.avatarUrl ?? ""
-                        ChatUIKitContext.shared?.updateCache(type: .user, profile: profile)
-                    }
-                    
+                    self?.profile.nickname = info.nickname ?? ""
+                    self?.profile.avatarURL = info.avatarUrl ?? ""
+                    ChatUIKitContext.shared?.notifyProfilesChanged()
                     self?.updateHeader()
                 } else {
                     self?.showToast(toast: "fetchUserInfo error:\(error?.errorDescription ?? "")")
@@ -221,7 +191,7 @@ final class MineContactDetailViewController: ContactInfoViewController {
         self.checkPermissionsAndCall(callType: callType) { [weak self] granted in
             guard granted, let self = self else { return }
 
-            if let cacheUser = ChatUIKitContext.shared?.userCache?[self.profile.id] {
+            if let cacheUser = ChatUIKitContext.shared?.userProfile(id: self.profile.id) {
                 CallKitManager.shared.usersCache[self.profile.id]?.nickname = cacheUser.nickname
                 CallKitManager.shared.usersCache[self.profile.id]?.avatarURL = cacheUser.avatarURL
             }
@@ -361,32 +331,15 @@ final class MineContactDetailViewController: ContactInfoViewController {
     }
     
     private func updateRemark(remark: String) {
-        if let info = ChatUIKitContext.shared?.userCache?[self.profile.id]  {
-            info.remark = remark
-            ChatUIKitContext.shared?.updateCache(type: .user, profile: info)
-            let dbInfo = EaseChatProfile()
-            dbInfo.id = self.profile.id
-            dbInfo.nickname = self.profile.nickname
-            dbInfo.avatarURL = self.profile.avatarURL
-            dbInfo.remark = self.profile.remark
-            dbInfo.update()
-        } else {
-            self.profile.remark = remark
-            ChatUIKitContext.shared?.updateCache(type: .user, profile: self.profile)
-            let dbInfo = EaseChatProfile()
-            dbInfo.id = self.profile.id
-            dbInfo.nickname = self.profile.nickname
-            dbInfo.avatarURL = self.profile.avatarURL
-            dbInfo.remark = self.profile.remark
-            dbInfo.insert()
-        }
+        self.profile.remark = remark
+        ChatUIKitContext.shared?.notifyProfilesChanged()
     }
     
     override func blockUserRefresh(blocked: Bool) {
         self.header.refreshHeader(showMenu: !blocked)
         self.datas.removeAll()
         var blockUserDatas = [
-            ["title":"contact_details_button_remark".localized(),"detail":ChatUIKitContext.shared?.userCache?[self.profile.id]?.remark ?? "","withSwitch": false,"switchValue":false],
+            ["title":"contact_details_button_remark".localized(),"detail":ChatUIKitContext.shared?.userProfile(id: self.profile.id)?.remark ?? "","withSwitch": false,"switchValue":false],
             ["title":"contact_details_switch_donotdisturb".chat.localize,
              "detail":"",
              "withSwitch": true,
@@ -407,7 +360,7 @@ final class MineContactDetailViewController: ContactInfoViewController {
                                "switchValue":blocked]]
         }
         self.datas = (Appearance.contact.enableBlock ? blockUserDatas:[
-            ["title":"contact_details_button_remark".localized(),"detail":ChatUIKitContext.shared?.userCache?[self.profile.id]?.remark ?? "","withSwitch": false,"switchValue":false],
+            ["title":"contact_details_button_remark".localized(),"detail":ChatUIKitContext.shared?.userProfile(id: self.profile.id)?.remark ?? "","withSwitch": false,"switchValue":false],
             ["title":"contact_details_switch_donotdisturb".chat.localize,
              "detail":"",
              "withSwitch": true,

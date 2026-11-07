@@ -40,7 +40,7 @@ public var saveIdentifier: String {
     @objc public func registerEventListener() {
         ChatClient.shared().add(self, delegateQueue: nil)
         if ChatClient.shared().options.enableUserInfo {
-            ChatClient.shared().userInfoManager?.add(self, delegateQueue: nil)
+            ChatClient.shared().userInfoManager?.add(self, delegateQueue: .main)
         }
     }
     
@@ -78,29 +78,9 @@ extension UserServiceImplement:UserServiceProtocol {
     }
     
     public func userInfos(userIds: [String], completion: @escaping ([ChatUserProfileProtocol],ChatError?) -> Void) {
-//        ChatClient.shared().userInfoManager?.fetchUserInfo(byId: userIds,completion: { [weak self] infoMap, error in
-//            guard let dic = infoMap as? Dictionary<String,UserInfo> else { return }
-//            var users = [EaseProfile]()
-//            for userId in userIds {
-//                if let info = dic[userId] {
-//                    if let user = self?.convertToUser(info: info) {
-//                        users.append(user)
-//                    }
-//                }
-//            }
-//            completion(users,error)
-//        })
     }
     
     public func updateUserInfo(userInfo: ChatUserProfileProtocol, completion: @escaping (Bool, ChatError?) -> Void) {
-//        if userInfo.id == ChatUIKitContext.shared?.currentUserId ?? "" {
-//            ChatUIKitContext.shared?.currentUser = userInfo
-//            ChatUIKitContext.shared?.userCache?[userInfo.id] = userInfo
-//        } else {
-//            ChatUIKitContext.shared?.updateCache(type: .chat, profile: userInfo)
-//            ChatUIKitContext.shared?.updateCache(type: .user, profile: userInfo)
-//            ChatUIKitContext.shared?.updateCache(type: .group, profile: userInfo)
-//        }
     }
     
     public func login(userId: String, token: String, completion: @escaping (Bool, ChatError?) -> Void) {
@@ -115,25 +95,7 @@ extension UserServiceImplement:UserServiceProtocol {
         }
     }
     
-    fileprivate func convertToUser(info: UserInfo) -> ChatUserProfile {
-        let user = ChatUserProfile()
-        user.id = info.userId ?? ""
-        user.nickname = info.nickname ?? ""
-        if let remark = ChatClient.shared().contactManager?.getContact(user.id)?.remark {
-            user.remark = remark
-        }
-        user.avatarURL = info.avatarUrl ?? ""
-        return user
-    }
-    
-    private func convertToUserInfo(user: ChatUserProfileProtocol) -> UserInfo {
-        let info = UserInfo()
-        info.userId = user.id
-        info.nickname = user.nickname
-        info.avatarUrl = user.avatarURL
-        return info
-    }
-    
+
 }
 
 //MARK: - ChatClientDelegate
@@ -201,11 +163,11 @@ extension UserServiceImplement: ChatClientListener {
 
 extension UserServiceImplement: UserInfoManagerDelegate {
     public func onSelfUserInfoUpdate(_ aUserInfo: UserInfo) {
-        ChatUIKitContext.shared?.updateChatAndUserTypeCaches(profiles: [self.convertToUser(info: aUserInfo)])
+        ChatUIKitContext.shared?.notifyProfilesChanged()
     }
     
     public func onUserInfoUpdate(_ aUserInfos: [String : UserInfo]) {
-        ChatUIKitContext.shared?.updateChatAndUserTypeCaches(profiles: aUserInfos.values.map { self.convertToUser(info: $0) })
+        ChatUIKitContext.shared?.notifyProfilesChanged()
     }
 }
 

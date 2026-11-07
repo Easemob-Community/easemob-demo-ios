@@ -155,16 +155,7 @@ import UIKit
                 guard let self = self, self.account == saveIdentifier else { return }
                 if let group = group, error == nil {
                     self.chatGroup = group
-                    let profile = ChatUserProfile()
-                    profile.id = groupId
-                    profile.nickname = group.groupName ?? ""
-                    if let ext = group.settings?.ext, !ext.isEmpty {
-                        profile.avatarURL = ext
-                    }
-                    if let avatar = group.groupAvatar, !avatar.isEmpty {
-                        profile.avatarURL = avatar
-                    }
-                    ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
+                    ChatUIKitContext.shared?.notifyProfilesChanged()
                 } else if let error = error {
                     self.showToast(toast: error.errorDescription ?? "group_admin_load_failed".chat.localize)
                 }
@@ -422,10 +413,7 @@ import UIKit
     }
     
     private func transferConfirm(profile: ChatUserProfileProtocol) {
-        var user = ChatUIKitContext.shared?.userCache?[profile.id]
-        if user == nil {
-            user = ChatUIKitContext.shared?.chatCache?[profile.id]
-        }
+        let user = ChatUIKitContext.shared?.userProfile(id: profile.id)
         var nickname = user?.remark ?? ""
         if nickname.isEmpty {
             nickname = user?.nickname ?? ""
@@ -692,16 +680,7 @@ extension GroupInfoViewController: UITableViewDelegate,UITableViewDataSource {
         guard self.account == saveIdentifier else { return }
         if type == .name {
             self.nameClosure?(self.chatGroup.groupId, text)
-            if let profile = ChatUIKitContext.shared?.groupCache?[self.chatGroup.groupId] {
-                profile.nickname = text
-                ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
-            } else {
-                let profile = ChatUserProfile()
-                profile.id = self.chatGroup.groupId
-                profile.nickname = text
-                profile.avatarURL = self.chatGroup.settings?.ext ?? ""
-                ChatUIKitContext.shared?.updateCache(type: .group, profile: profile)
-            }
+            ChatUIKitContext.shared?.notifyProfilesChanged()
             ChatUIKitContext.shared?.onGroupNameUpdated?(self.chatGroup.groupId, text)
             self.header.nickName.text = text
         }
@@ -819,7 +798,7 @@ extension GroupInfoViewController: GroupServiceListener {
 /// Resolves display profiles without making view controllers depend on a particular profile provider.
 enum GroupInfoProfileLoader {
     static func profile(userId: String, groupId: String? = nil) -> ChatUserProfileProtocol {
-        let cached = ChatUIKitContext.shared?.userCache?[userId] ?? ChatUIKitContext.shared?.chatCache?[userId]
+        let cached = ChatUIKitContext.shared?.userProfile(id: userId)
         let profile = ChatUserProfile()
         profile.id = userId
         profile.nickname = cached?.nickname ?? ""

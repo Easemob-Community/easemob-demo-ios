@@ -8,7 +8,6 @@
 import EaseCallUIKit
 import EaseChatUIKit
 import HyphenateChat
-import SwiftFFDBHotFix
 import UIKit
 import UserNotifications
 import AgoraRtcKit
@@ -53,6 +52,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         // Override point for customization after application launch.
         self.setupEaseChatUIKit()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshUnreadCountAfterSync), name: Notification.Name(profile_update_notification), object: nil)
         self.setupCallKit()
         self.setupEaseChatUIKitConfig()
         return true
@@ -210,20 +210,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         guard !userId.isEmpty else {
             return
         }
-        var user = ChatUIKitContext.shared?.currentUser
-        if user == nil {
-            let profile = EaseChatProfile()
-            profile.id = userId
-            ChatUIKitContext.shared?.currentUser = profile
-            user = profile
-        }
-        ChatUIKitClient.shared.login(user: user!, token: self.token) { [weak self] error in
-            guard let _ = self,let error = error else {
-                NotificationCenter.default.post(name: Notification.Name(rawValue: "cu_avatar_update_notification"), object: nil, userInfo: nil)
-                return
-            }
+        consoleLogInfo("Begin silent login", type: .debug)
+        ChatUIKitClient.shared.login(userId: userId, token: self.token) { error in
+            consoleLogInfo("End silent login", type: .debug)
+            guard let error else { return }
             consoleLogInfo("Silent login failed:\(error.errorDescription ?? "")", type: .error)
-            NotificationCenter.default.post(name: Notification.Name(backLoginPage), object: nil)
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Notification.Name(backLoginPage), object: nil)
+            }
         }
     }
 
@@ -378,49 +372,6 @@ extension AppDelegate: UserStateChangedListener {
         self.logoutUser()
         NotificationCenter.default.post(
             name: Notification.Name(rawValue: backLoginPage), object: nil)
-    }
-
-    func onUserAutoLoginCompletion(error: EaseChatUIKit.ChatError?) {
-        if error != nil {
-            NotificationCenter.default.post(
-                name: Notification.Name(rawValue: backLoginPage), object: nil)
-        } else {
-            self.token = ChatClient.shared().accessUserToken ?? ""
-            ChatClient.shared().pushManager?.syncSilentModeConversations(fromServerCompletion: {
-                error in
-
-            })
-            DispatchQueue.global().async {
-                if let groups = ChatClient.shared().groupManager?.getJoinedGroups() {
-                    var profiles = [EaseChatProfile]()
-                    for group in groups {
-                        let profile = EaseChatProfile()
-                        profile.id = group.groupId
-                        // Unannotated `EMGroup` members import as implicitly unwrapped
-                        // optionals; a cached group may have no name, settings or avatar.
-                        profile.nickname = group.groupName ?? ""
-                        if let ext = group.settings?.ext, !ext.isEmpty {
-                            profile.avatarURL = ext
-                        }
-                        if let avatar = group.groupAvatar, !avatar.isEmpty {
-                            profile.avatarURL = avatar
-                        }
-                        profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
-                        profiles.append(profile)
-                        profile.insert()
-                    }
-                    ChatUIKitContext.shared?.updateCaches(type: .group, profiles: profiles)
-                }
-                if let users = ChatUIKitContext.shared?.userCache {
-                    for user in users.values {
-                        ChatUIKitContext.shared?.userCache?[user.id]?.remark =
-                            ChatClient.shared().contactManager?.getContact(user.id)?.remark ?? ""
-                    }
-                }
-            }
-            NotificationCenter.default.post(
-                name: Notification.Name(loginSuccessfulSwitchMainPage), object: nil)
-        }
     }
 
 }
@@ -590,11 +541,8 @@ extension AppDelegate: ChatDataSyncListener {
         NotificationCenter.default.post(name: Notification.Name(unreadCountNeedsRefresh), object: nil)
     }
 
-    func onChatDataSyncFinished(error: EaseChatUIKit.ChatError?, type: EaseChatUIKit.DataSyncType) {
-        guard error == nil else { return }
-        if type == .conversations {
-            NotificationCenter.default.post(name: Notification.Name(unreadCountNeedsRefresh), object: nil)
-        }
+    @objc private func refreshUnreadCountAfterSync() {
+        NotificationCenter.default.post(name: Notification.Name(unreadCountNeedsRefresh), object: nil)
     }
 }
 

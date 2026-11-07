@@ -107,10 +107,7 @@ import UIKit
                             let profile = ChatUserProfile()
                             let id = $0 as String
                             profile.id = id
-                            if let user = ChatUIKitContext.shared?.userCache?[id] {
-                                profile.nickname = user.nickname
-                            }
-                            if let user = ChatUIKitContext.shared?.chatCache?[id] {
+                            if let user = ChatUIKitContext.shared?.userProfile(id: id) {
                                 profile.nickname = user.nickname
                             }
                             
@@ -121,10 +118,7 @@ import UIKit
                             let profile = ChatUserProfile()
                             let id = $0 as String
                             profile.id = id
-                            if let user = ChatUIKitContext.shared?.userCache?[id] {
-                                profile.nickname = user.nickname
-                            }
-                            if let user = ChatUIKitContext.shared?.chatCache?[id] {
+                            if let user = ChatUIKitContext.shared?.userProfile(id: id) {
                                 profile.nickname = user.nickname
                             }
                             

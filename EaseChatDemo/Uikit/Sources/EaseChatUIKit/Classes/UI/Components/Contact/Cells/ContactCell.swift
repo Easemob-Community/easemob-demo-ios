@@ -57,16 +57,16 @@ import UIKit
     
     @objc open func refresh(profile: ChatUserProfileProtocol) {
         self.avatar.cornerRadius(Appearance.avatarRadius)
-        var showName = ChatUIKitContext.shared?.userCache?[profile.id]?.remark ?? ""
+        var showName = ChatUIKitContext.shared?.userProfile(id: profile.id)?.remark ?? ""
         if showName.isEmpty {
-            showName = ChatUIKitContext.shared?.userCache?[profile.id]?.nickname ?? ""
+            showName = ChatUIKitContext.shared?.userProfile(id: profile.id)?.nickname ?? ""
         }
         if showName.isEmpty {
             showName = profile.id
         }
         var avatarURL = profile.avatarURL
         if avatarURL.isEmpty {
-            avatarURL = ChatUIKitContext.shared?.userCache?[profile.id]?.avatarURL ?? ""
+            avatarURL = ChatUIKitContext.shared?.userProfile(id: profile.id)?.avatarURL ?? ""
         }
         self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
         self.nickName.text = showName
@@ -77,16 +77,16 @@ import UIKit
     }
     
     @objc public func refresh(profile: ChatUserProfileProtocol,keyword: String) {
-        var showName = ChatUIKitContext.shared?.userCache?[profile.id]?.remark ?? ""
+        var showName = ChatUIKitContext.shared?.userProfile(id: profile.id)?.remark ?? ""
         if showName.isEmpty {
-            showName = ChatUIKitContext.shared?.userCache?[profile.id]?.nickname ?? ""
+            showName = ChatUIKitContext.shared?.userProfile(id: profile.id)?.nickname ?? ""
         }
         if showName.isEmpty {
             showName = profile.id
         }
         var avatarURL = profile.avatarURL
         if avatarURL.isEmpty {
-            avatarURL = ChatUIKitContext.shared?.userCache?[profile.id]?.avatarURL ?? ""
+            avatarURL = ChatUIKitContext.shared?.userProfile(id: profile.id)?.avatarURL ?? ""
         }
         self.nickName.attributedText = self.highlightKeywords(keyword: keyword, in: showName)
         self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)

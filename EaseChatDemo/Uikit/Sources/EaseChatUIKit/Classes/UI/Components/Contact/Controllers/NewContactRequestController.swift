@@ -120,8 +120,8 @@ import UIKit
             request.time = ($0["timestamp"] as? TimeInterval) ?? 0
             request.status = FriendRequestStore.status(of: $0)
             request.isProcessing = self.processingUserIds.contains(request.userId)
-            request.avatarURL = ChatUIKitContext.shared?.userCache?[request.userId]?.avatarURL ?? ""
-            request.nickname = ChatUIKitContext.shared?.userCache?[request.userId]?.nickname ?? ""
+            request.avatarURL = ChatUIKitContext.shared?.userProfile(id: request.userId)?.avatarURL ?? ""
+            request.nickname = ChatUIKitContext.shared?.userProfile(id: request.userId)?.nickname ?? ""
             return request
         }
     }

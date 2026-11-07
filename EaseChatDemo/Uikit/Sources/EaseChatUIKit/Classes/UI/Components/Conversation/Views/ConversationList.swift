@@ -266,14 +266,14 @@ extension ConversationList: IConversationListDriver {
     
     public func refreshProfiles(infos: [ChatUserProfileProtocol]) {
         
-        for info in infos {
+        for suppliedInfo in infos {
+            let sdkConversation = ChatClient.shared().chatManager?.getConversationWithConvId(suppliedInfo.id)
+            let info = sdkConversation.flatMap { ChatUIKitContext.shared?.conversationProfile(conversation: $0) } ?? suppliedInfo
             if let index = self.indexMap[info.id], let item = self.datas[safe: index] {
                 if !info.nickname.isEmpty {
                     item.nickname = info.nickname
                 }
-                if !info.remark.isEmpty {
-                    item.remark = info.remark
-                }
+                item.remark = info.remark
                 if !info.avatarURL.isEmpty {
                     item.avatarURL = info.avatarURL
                 }

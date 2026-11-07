@@ -180,7 +180,6 @@ import PhotosUI
     
     
     deinit {
-        ChatUIKitContext.shared?.cleanCache(type: .chat)
     }
 }
 

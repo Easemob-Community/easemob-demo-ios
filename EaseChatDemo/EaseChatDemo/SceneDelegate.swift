@@ -7,7 +7,6 @@
 
 import UIKit
 import EaseChatUIKit
-import SwiftFFDBHotFix
 import EaseCallUIKit
 
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
@@ -62,7 +61,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = UIWindow(windowScene: windowScene)
         self.window?.backgroundColor = .black
         self.window?.makeKeyAndVisible()
-        EaseChatProfile.registerTable()//使用三方数据库，将模型注册成为表
         self.chooseRootViewController()
         self.switchTheme()
         NotificationCenter.default.addObserver(self, selector: #selector(loadMain), name: Notification.Name(loginSuccessfulSwitchMainPage), object: nil)
@@ -82,31 +80,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             self.window?.rootViewController = LoginViewController()
             return
         }
-        if let dbPath = FMDBConnection.databasePath,dbPath.isEmpty {
-            //此处不能用String.documentsPath,EaseChatUIKit与EaseCallUIKit都对其做了同名扩展,同时import会产生歧义
-            FMDBConnection.databasePath = NSHomeDirectory()+"/Documents/"+"/EaseMobDemo/"+"\(AppKey)/"+userId+".db"
-        }
-        self.loadCache()
         self.window?.rootViewController = MainViewController()
-    }
-    
-    private func loadCache() {
-        if let profiles = EaseChatProfile.select(where: nil) as? [EaseChatProfile] {
-            for profile in profiles {
-                if let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(profile.id) {
-                    if conversation.type == .chat {
-                        ChatUIKitContext.shared?.userCache?[profile.id] = profile
-                    } else {
-                        ChatUIKitContext.shared?.groupCache?[profile.id] = profile
-                    }
-                }
-                if profile.id == ChatClient.shared().currentUsername ?? "" {
-                    ChatUIKitContext.shared?.currentUser = profile
-                    ChatUIKitContext.shared?.userCache?[profile.id] = profile
-                }
-            }
-        }
-        
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {

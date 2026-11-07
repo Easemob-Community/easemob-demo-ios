@@ -278,7 +278,8 @@ import UIKit
         
         var ext = extensionInfo
         if ChatUIKitClient.shared.option.option_UI.compatibilityModeForUserInfo {
-            let json = ChatUIKitContext.shared?.currentUser?.toJsonObject() ?? [:]
+            let userId = ChatUIKitContext.shared?.currentUserId ?? ""
+            let json = ChatUIKitContext.shared?.userProfile(id: userId)?.toJsonObject() ?? [:]
             ext.merge(json) { _, new in
                 new
             }
@@ -931,8 +932,8 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
         if profile.id.isEmpty || profile.id == ChatUIKitContext.shared?.currentUserId {
             return
         }
-        // The message may carry a profile which only knows the id, so prefer the cached one for the nickname.
-        let user = ChatUIKitContext.shared?.userCache?[profile.id] ?? profile
+        // The message may carry a profile which only knows the id, so read the SDK profile for the nickname.
+        let user = ChatUIKitContext.shared?.userProfile(id: profile.id) ?? profile
         self.updateMentionIds(profile: GroupMemberAttributesCache.shared.displayProfile(groupId: self.to, profile: user), type: .add)
     }
     
@@ -1218,15 +1219,10 @@ extension MessageListViewModel: GroupChatThreadEventListener {
                 if type == .created {
                     let topicName = event.chatThread?.threadName ?? ""
                     let owner = event.chatThread.owner ?? ""
-                    var showUserName = ChatUIKitContext.shared?.chatCache?[owner]?.remark ?? ""
+                    let ownerProfile = ChatUIKitContext.shared?.userProfile(id: owner)
+                    var showUserName = ownerProfile?.remark ?? ""
                     if showUserName.isEmpty {
-                        showUserName = ChatUIKitContext.shared?.chatCache?[owner]?.nickname ?? ""
-                    }
-                    if showUserName.isEmpty {
-                        showUserName = ChatUIKitContext.shared?.userCache?[owner]?.remark ?? ""
-                    }
-                    if showUserName.isEmpty {
-                        showUserName = ChatUIKitContext.shared?.userCache?[owner]?.nickname ?? ""
+                        showUserName = ownerProfile?.nickname ?? ""
                     }
                     if showUserName.isEmpty {
                         showUserName = owner

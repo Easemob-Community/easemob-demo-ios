@@ -5,7 +5,6 @@
 
 import UIKit
 import EaseChatUIKit
-import SwiftFFDBHotFix
 
 final class MeViewController: UIViewController {
     private enum Action { case business, website, sdk, uikit, registration, policies, status, profile, general, notification, blocked }
@@ -24,10 +23,9 @@ final class MeViewController: UIViewController {
         return [[Row("me_contact_business", "400-622-1776", .business), Row("me_visit_easemob", "www.easemob.com", .website), Row("me_sdk_version", "Easemob SDK v" + ChatClient.shared().version, .sdk), Row("me_uikit_version", "Easemob UIKit v" + ChatUIKit_VERSION, .uikit), Row("ICP", "京ICP备2023000793号-10A", .registration), Row("me_privacy_and_agreements", "", .policies)], settings]
     }
     private var currentUserId: String {
-        let userId = ChatUIKitContext.shared?.currentUserId ?? ""
-        return userId.isEmpty ? (ChatUIKitContext.shared?.currentUser?.id ?? "") : userId
+        ChatUIKitContext.shared?.currentUserId ?? ""
     }
-    private var profileGeneration = 0
+    private var signatureGeneration = 0
     private var signature = ""
     private var limited = false
     private var customStatus = ""
@@ -84,7 +82,7 @@ final class MeViewController: UIViewController {
         self.refreshProfile()
         PresenceManager.shared.addHandler(handler: self)
         self.showUserStatus()
-        NotificationCenter.default.addObserver(self, selector: #selector(refreshProfile), name: NSNotification.Name(userAvatarUpdated), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshProfile), name: Notification.Name(profile_update_notification), object: nil)
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
     }
@@ -109,9 +107,8 @@ final class MeViewController: UIViewController {
     }
 
     @objc private func refreshProfile() {
-        self.profileGeneration += 1
         let userId = self.currentUserId
-        let user = ChatUIKitContext.shared?.currentUser
+        let user = ChatUIKitContext.shared?.userProfile(id: userId)
         self.header.configure(nickname: (user?.nickname.isEmpty == false ? user?.nickname : userId) ?? userId, signature: self.signature, userId: userId, avatarURL: user?.avatarURL ?? "")
     }
 
@@ -119,20 +116,12 @@ final class MeViewController: UIViewController {
         let userId = ChatUIKitContext.shared?.currentUserId ?? ""
         guard !userId.isEmpty else { return }
         let account = saveIdentifier
-        let generation = self.profileGeneration
+        self.signatureGeneration += 1
+        let generation = self.signatureGeneration
         ChatClient.shared().userInfoManager?.fetchUserInfo(byId: [userId], type: [0, 1, 5]) { [weak self] infoMap, error in
             DispatchQueue.main.async {
-                guard let self = self, account == saveIdentifier, generation == self.profileGeneration else { return }
+                guard let self = self, account == saveIdentifier, generation == self.signatureGeneration else { return }
                 guard let info = infoMap?[userId], error == nil else { return }
-                let existing = (EaseChatProfile.select(where: "id = ?", values: [userId]) as? [EaseChatProfile])?.first
-                let profile = existing ?? EaseChatProfile()
-                profile.id = userId
-                profile.nickname = info.nickname ?? ""
-                profile.avatarURL = info.avatarUrl ?? ""
-                profile.modifyTime = Int64(Date().timeIntervalSince1970 * 1000)
-                if existing == nil { profile.insert() } else { profile.updateFFDB() }
-                ChatUIKitContext.shared?.currentUser = profile
-                ChatUIKitContext.shared?.userCache?[userId] = profile
                 self.signature = info.sign ?? ""
                 self.refreshProfile()
             }
@@ -246,6 +235,7 @@ extension MeViewController: UITableViewDelegate, UITableViewDataSource {
     }
 
     private func updateSignature(_ signature: String) {
+        self.signatureGeneration += 1
         self.signature = signature
         self.refreshProfile()
     }
@@ -472,23 +462,3 @@ final class MeProfileHeader: UIView, ThemeSwitchProtocol {
         self.showStatus(self.statusState)
     }
 }
-
-extension FFObject {
-    @discardableResult
-    public func updateFFDB() -> Bool {
-        do {
-            var values = [Any]()
-            for column in subType.columnsOfSelf() {
-                let value = valueNotNullFrom(column)
-                values.append(value)
-            }
-            values.append(valueNotNullFrom("id"))
-//            values.append(valueNotNullFrom(subType.primaryKeyColumn()))
-            return try FFDBManager.update(subType, set: subType.columnsOfSelf(), where: "id = ?",values:values)
-        } catch {
-            consoleLogInfo("failed: \(error.localizedDescription)", type: .error)
-        }
-        return false
-    }
-}
-

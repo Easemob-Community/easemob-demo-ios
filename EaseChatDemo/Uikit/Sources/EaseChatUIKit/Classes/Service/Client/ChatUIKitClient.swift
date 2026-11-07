@@ -2,7 +2,7 @@ import Foundation
 
 public let ChatUIKit_VERSION = "5.0.0"
 
-public let cache_update_notification = "ChatUIKitContextUpdateCache"
+public let profile_update_notification = "ChatUIKitProfilesDidChange"
 
 @objcMembers public class ChatUIKitOptions: NSObject {
     
@@ -115,44 +115,35 @@ public let cache_update_notification = "ChatUIKitContextUpdateCache"
     
     /// Fans an action out to listeners whose interested type is contained in `type` (main thread).
     fileprivate func dispatchToDataSyncListeners(type: DataSyncType, action: (ChatDataSyncListener) -> Void) {
-        for listener in self.dataSyncListeners.allObjects where type.contains(listener.interestedSyncType) {
+        for listener in self.dataSyncListeners.allObjects where !type.intersection(listener.interestedSyncType).isEmpty {
             action(listener)
         }
     }
     
-    /// Login user.
-    /// - Parameters:
-    ///   - user: An instance that conforms to ``ChatUserProfileProtocol``.
-    ///   - token: The user chat token.
-    @objc(loginWithUser:token:completion:)
-    public func login(user: ChatUserProfileProtocol,token: String,completion: @escaping (ChatError?) -> Void) {
-        ChatUIKitContext.shared?.currentUser = user
-        ChatUIKitContext.shared?.chatCache?[user.id] = user
-        ChatUIKitContext.shared?.userCache?[user.id] = user
-        if self.userService != nil {
-            self.userService?.login(userId: user.id, token: token, completion: {[weak self] success, error in
-                if error == nil {
-                    self?.updateUserInfoIfNeed(user: user)
-                }
-                completion(error)
-            })
-        } else {
-            self.userService = UserServiceImplement(userInfo: user, token: token, completion: {[weak self] error in
-                if error == nil {
-                    self?.updateUserInfoIfNeed(user: user)
-                }
-                completion(error)
-            })
+    /// Log in with the account ID and hydrate its profile from the SDK server.
+    @objc(loginWithUserId:token:completion:)
+    public func login(userId: String, token: String, completion: @escaping (ChatError?) -> Void) {
+        ChatUIKitContext.shared?.cancelDataSyncRefresh()
+        if self.userService == nil {
+            self.userService = UserServiceImplement()
         }
-    }
-    
-    /// Logout user
-    @objc public func logout(unbindNotificationDeviceToken: Bool = false,completion: @escaping (ChatError?) -> Void) {
-        ChatClient.shared().logout(unbindNotificationDeviceToken) { error in
+        self.userService?.login(userId: userId, token: token) { _, error in
             completion(error)
         }
     }
-    
+
+    /// Compatibility entry point for callers that pass a profile as the login identifier.
+    @objc(loginWithUser:token:completion:)
+    public func login(user: ChatUserProfileProtocol, token: String, completion: @escaping (ChatError?) -> Void) {
+        self.login(userId: user.id, token: token, completion: completion)
+    }
+
+    /// Logout user
+    @objc public func logout(unbindNotificationDeviceToken: Bool = false,completion: @escaping (ChatError?) -> Void) {
+        ChatUIKitContext.shared?.cancelDataSyncRefresh()
+        ChatClient.shared().logout(unbindNotificationDeviceToken, completion: completion)
+    }
+
     /// Register a user to listen for callbacks that monitor user status changes.
     /// - Parameter listener: ``UserStateChangedListener``
     @objc public func registerUserStateListener(_ listener: UserStateChangedListener) {
@@ -190,39 +181,7 @@ public let cache_update_notification = "ChatUIKitContextUpdateCache"
     public func refreshToken(token: String) {
         ChatClient.shared().renewToken(token)
     }
-    
-    
-    private func updateUserInfoIfNeed(user: ChatUserProfileProtocol) {
-        guard let profiles = ChatClient.shared().userInfoManager?.getUserInfo(byIds: [user.id]),
-           let profile = profiles[user.id] else {
-            let userInfo = UserInfo()
-            userInfo.userId = user.id
-            userInfo.avatarUrl = user.avatarURL
-            ChatClient.shared().userInfoManager?.updateOwn(userInfo)
-            return
-        }
-        
-        let currentUser = ChatUserProfile()
-        currentUser.id = profile.userId ?? ""
-        currentUser.avatarURL = profile.avatarUrl ?? ""
-        currentUser.remark = ChatClient.shared().contactManager?.getContact(currentUser.id)?.remark ?? ""
-        ChatUIKitContext.shared?.currentUser = currentUser
-        ChatUIKitContext.shared?.updateCache(type: .user, profile: currentUser)
 
-        if user.nickname.isEmpty,
-           user.avatarURL.isEmpty,
-           user.remark.isEmpty {
-            return
-        }
-        if user.nickname == profile.nickname,
-           user.avatarURL == profile.avatarUrl {
-            return
-        }
-        let userInfo = profile
-        userInfo.nickname = user.nickname
-        userInfo.avatarUrl = user.avatarURL
-        ChatClient.shared().userInfoManager?.updateOwn(userInfo)
-    }
 }
 
 //MARK: - ChatClientListener
@@ -230,6 +189,8 @@ extension ChatUIKitClient: ChatClientListener {
     
     public func onDatabaseOpened(_ error: ChatError?, username: String) {
         guard error == nil else { return }
+        ChatUIKitContext.shared?.cancelDataSyncRefresh()
+        ChatUIKitContext.shared?.notifyProfilesChanged()
         self.dispatchToDataSyncListeners { $0.onChatDatabaseOpened?() }
     }
     
@@ -239,6 +200,11 @@ extension ChatUIKitClient: ChatClientListener {
     
     public func syncDataFinished(_ error: ChatError?, type: DataSyncType) {
         self.dispatchToDataSyncListeners(type: type) { $0.onChatDataSyncFinished?(error: error,type: type) }
+        let listTypes: DataSyncType = [.conversations, .contacts, .joinedGroups]
+        if !type.intersection(listTypes).isEmpty {
+            // Even a failed sync can leave usable local/partially synchronized data.
+            ChatUIKitContext.shared?.scheduleDataSyncRefresh()
+        }
     }
 }
 

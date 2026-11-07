@@ -390,7 +390,7 @@ private extension GroupServiceImplement {
             let previous = self.recentAdminNotices[key]
             if previous?.added == added { return }
             let messageId = "group-admin-" + UUID().uuidString
-            let name = self.cachedNickname(userId: userId)
+            let name = self.localNickname(userId: userId)
             let message = ChatMessage(conversationID: groupId, from: userId, to: groupId,
                                       body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: [
                                         "groupAdminUserId": userId, "groupAdminNickname": name,
@@ -425,14 +425,13 @@ private extension GroupServiceImplement {
         }
     }
 
-    func cachedNickname(userId: String) -> String {
-        let names = [ChatUIKitContext.shared?.userCache?[userId]?.nickname,
-                     ChatUIKitContext.shared?.chatCache?[userId]?.nickname]
-        return names.compactMap { $0 }.first(where: { !$0.isEmpty }) ?? userId
+    func localNickname(userId: String) -> String {
+        let name = ChatUIKitContext.shared?.userProfile(id: userId)?.nickname ?? ""
+        return name.isEmpty ? userId : name
     }
 
     func resolveNickname(userId: String, account: String, completion: @escaping (String) -> Void) {
-        let cached = self.cachedNickname(userId: userId)
+        let cached = self.localNickname(userId: userId)
         if cached != userId {
             completion(cached)
             return
