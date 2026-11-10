@@ -36,6 +36,9 @@
 "Nickname" = "Nickname";
 
 "dark_mode" = "Dark Mode";
+"appearance_system" = "Follow System";
+"appearance_light" = "Light";
+"appearance_dark" = "Dark";
 "switch_theme" = "Switch Theme";
 "color_setting" = "Color Setting";
 "feature_switch" = "Feature Switch";

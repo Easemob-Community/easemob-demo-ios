@@ -38,6 +38,9 @@
 
 
 "dark_mode" = "暗黑模式";
+"appearance_system" = "跟随系统";
+"appearance_light" = "浅色";
+"appearance_dark" = "深色";
 "switch_theme" = "切换主题";
 "color_setting" = "颜色设置";
 "feature_switch" = "特性开关";

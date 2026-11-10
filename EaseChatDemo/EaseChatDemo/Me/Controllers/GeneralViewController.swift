@@ -11,8 +11,6 @@ import QuickLook
 
 final class GeneralViewController: UIViewController {
     
-    @UserDefault("EaseChatDemoDarkMode", defaultValue: false) var darkMode: Bool
-        
     @UserDefault("EaseChatDemoPreferencesTheme", defaultValue: 1) var theme: UInt
     
     @UserDefault("EaseChatDemoPreferencesLanguage", defaultValue: "zh-Hans") var language: String
@@ -24,7 +22,7 @@ final class GeneralViewController: UIViewController {
     @UserDefault("EaseChatDemoPreferencesAttachmentStyle", defaultValue: 0) var attachmentStyle: UInt8
 
     private lazy var jsons: [Dictionary<String,Any>] = {
-        [["title":"dark_mode".localized(),"detail":"","withSwitch": true,"switchValue":self.darkMode],
+        [["title":"dark_mode".localized(),"detail":DemoAppearanceMode.selected.title,"withSwitch": false,"switchValue":false],
          ["title":"switch_theme".localized(),"detail":(self.theme == 0 ? "Classic".localized():"Smart".localized()),"withSwitch": false,"switchValue":false],
          ["title":"long_press_style".localized(),"detail":self.longPressStyle == 0 ? "style1".localized() : "style2".localized(),"withSwitch": false,"switchValue":false],
          ["title":"attachment_menu_style".localized(),"detail":self.attachmentStyle == 0 ? "style1".localized() : "style2".localized(),"withSwitch": false,"switchValue":false],
@@ -65,6 +63,7 @@ final class GeneralViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        self.datas.first { $0.title == "dark_mode".localized() }?.detail = DemoAppearanceMode.selected.title
         self.datas.first { $0.title == "long_press_style".localized() }?.detail = self.longPressStyle == 0 ? "style1".localized() : "style2".localized()
         self.datas.first { $0.title == "attachment_menu_style".localized() }?.detail = self.attachmentStyle == 0 ? "style1".localized() : "style2".localized()
         self.datas.first { $0.title == "translate_language_setting".localized() }?.detail = self.translate_language.hasPrefix("zh") ? "Chinese".localized():"English".localized()
@@ -95,31 +94,15 @@ extension GeneralViewController: UITableViewDelegate,UITableViewDataSource {
         if let info = self.datas[safe: indexPath.row] {
             cell?.refresh(info: info)
         }
-        cell?.valueChanged = { [weak self] in
-            self?.switchChanged(isOn: $0, indexPath: $1)
-        }
         cell?.selectionStyle = .none
         return cell ?? UITableViewCell()
     }
     
-    func switchChanged(isOn: Bool, indexPath: IndexPath) {
-        if let title = self.datas[safe: indexPath.row]?.title {
-            self.datas[safe: indexPath.row]?.switchValue = isOn
-            switch title {
-            case "dark_mode".localized():
-                Theme.switchTheme(style: isOn ? .dark:.light)
-                self.darkMode = isOn
-            default:
-                break
-            }
-            
-        }
-    }
-    
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        if let title = self.datas[safe: indexPath.row]?.title,title != "dark_mode".localized() {
+        if let title = self.datas[safe: indexPath.row]?.title {
             switch title {
+            case "dark_mode".localized(): self.chooseAppearance()
             case "switch_theme".localized(): self.switchTheme()
             case "color_setting".localized(): self.colorSet()
             case "feature_switch".localized(): self.featureSwitch()
@@ -135,6 +118,11 @@ extension GeneralViewController: UITableViewDelegate,UITableViewDataSource {
         }
     }
     
+    private func chooseAppearance() {
+        let vc = ThemesSettingViewController(setting: .appearance)
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+
     private func changeCallBackground() {
         let vc = CallBackgroundSettingController()
         self.navigationController?.pushViewController(vc, animated: true)

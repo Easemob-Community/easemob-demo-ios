@@ -32,9 +32,7 @@ import UIKit
         UILabel(frame: CGRect(x: self.frame.width-(self.frame.width/2.0-56), y: 16, width: (self.frame.width/2.0-36), height: 22)).font(UIFont.theme.labelMedium).backgroundColor(.clear).textAlignment(.right)
     }()
     
-    public private(set) lazy var switchMenu: UISwitch = {
-        UISwitch(frame: CGRect(x: self.frame.width-62, y: (self.contentView.frame.height-30)/2.0, width: 50, height: 30))
-    }()
+    public private(set) lazy var switchMenu = UISwitch()
     
     public private(set) lazy var separatorLine: UIView = {
         UIView(frame: CGRect(x: 16, y: self.contentView.frame.height-0.5, width: self.contentView.frame.width-16, height: 0.5))
@@ -62,9 +60,20 @@ import UIKit
     
     open override func layoutSubviews() {
         super.layoutSubviews()
-        self.titleLabel.frame = CGRect(x: 16, y: 16, width: (self.frame.width/2.0-22), height: 22)
-        self.detailLabel.frame = CGRect(x: self.frame.width/2.0, y: 16, width: (self.frame.width/2.0-36), height: 22)
-        self.switchMenu.frame = CGRect(x: self.frame.width-62, y: (self.contentView.frame.height-30)/2.0, width: 50, height: 30)
+        let bounds = self.contentView.bounds
+        self.titleLabel.frame = CGRect(x: 16, y: 16, width: bounds.width / 2 - 22, height: 22)
+        self.detailLabel.frame = CGRect(x: bounds.width / 2, y: 16, width: bounds.width / 2 - 36, height: 22)
+        if !self.switchMenu.isHidden {
+            self.switchMenu.sizeToFit()
+            let rightEdge = bounds.maxX - self.contentView.safeAreaInsets.right - 16
+            self.switchMenu.center = CGPoint(x: rightEdge - self.switchMenu.bounds.width / 2, y: bounds.midY)
+            let labelRightEdge = self.switchMenu.frame.minX - 12
+            if self.detailLabel.text?.isEmpty == false {
+                self.detailLabel.frame.size.width = max(0, labelRightEdge - self.detailLabel.frame.minX)
+            } else {
+                self.titleLabel.frame.size.width = max(0, labelRightEdge - self.titleLabel.frame.minX)
+            }
+        }
         self.separatorLine.frame = CGRect(x: 16, y: self.frame.height-0.5, width: self.frame.width, height: 0.5)
         self.indicator.frame = CGRect(x: self.frame.width-28, y: (self.frame.height-20)/2.0, width: 10, height: 20)
     }
@@ -79,12 +88,8 @@ import UIKit
             self.indicator.isHidden = info.withSwitch
         }
         
-        if !info.withSwitch {
-            self.detailLabel.frame = CGRect(x: self.frame.width/2.0, y: 16, width: (self.frame.width/2.0-36), height: 22)
-        } else {
-            self.detailLabel.frame = CGRect(x: self.frame.width-116, y: 16, width: 100, height: 22)
-        }
         self.switchMenu.isOn = info.switchValue
+        self.setNeedsLayout()
     }
     
     @objc private func valueSwitch() {

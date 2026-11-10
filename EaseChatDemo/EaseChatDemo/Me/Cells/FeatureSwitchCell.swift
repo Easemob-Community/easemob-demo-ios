@@ -14,9 +14,7 @@ final class FeatureSwitchCell: UITableViewCell {
         UILabel(frame: CGRect(x: 16, y: 16, width: self.contentView.frame.width-73, height: 22)).font(UIFont.theme.labelLarge)
     }()
     
-    lazy var featureSwitch: UISwitch = {
-        UISwitch(frame: CGRect(x: self.contentView.frame.width-63, y: 11.5, width: 51, height: 31))
-    }()
+    let featureSwitch = UISwitch()
 
     lazy var detailContainer: UIView = {
         UIView(frame: CGRect(x: 0, y: self.featureName.frame.maxY+20, width: self.frame.width, height: 26))
@@ -41,9 +39,11 @@ final class FeatureSwitchCell: UITableViewCell {
     
     override func layoutSubviews() {
         super.layoutSubviews()
-        self.featureName.frame = CGRect(x: 16, y: 16, width: self.contentView.frame.width-73, height: 22)
+        self.featureSwitch.sizeToFit()
+        let rightEdge = self.contentView.bounds.maxX - self.contentView.safeAreaInsets.right - 16
+        self.featureSwitch.center = CGPoint(x: rightEdge - self.featureSwitch.bounds.width / 2, y: 27)
+        self.featureName.frame = CGRect(x: 16, y: 16, width: max(0, self.featureSwitch.frame.minX - 16 - 12), height: 22)
         self.detailContainer.frame =  CGRect(x: 0, y: self.featureName.frame.maxY+20, width: self.frame.width, height: 26)
-        self.featureSwitch.frame = CGRect(x: self.contentView.frame.width-63, y: 11.5, width: 51, height: 31)
         self.featureDetail.frame = CGRect(x: 16, y: self.featureName.frame.maxY+24, width: self.contentView.frame.width-32, height: 16)
         self.separatorLine.frame = CGRect(x: 16, y: self.featureName.frame.maxY+20, width: self.frame.width-16, height: 0.5)
     }

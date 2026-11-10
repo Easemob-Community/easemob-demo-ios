@@ -1066,14 +1066,16 @@ private final class GroupDetailsRowCell: UITableViewCell, ThemeSwitchProtocol {
         let height = self.contentView.bounds.height
         let announcement = self.info.title == "group_details_button_announcement".chat.localize
         let detailWidth = min(width * 0.62, self.detail.sizeThatFits(CGSize(width: width, height: 24)).width)
-        self.name.frame = CGRect(x: 14, y: announcement ? 10 : (height - 24) / 2, width: self.info.withSwitch ? width - 88 : width - detailWidth - 62, height: 24)
+        self.toggle.sizeToFit()
+        let rightEdge = self.contentView.bounds.maxX - self.contentView.safeAreaInsets.right - 16
+        self.toggle.center = CGPoint(x: rightEdge - self.toggle.bounds.width / 2, y: height / 2)
+        let titleWidth = self.info.withSwitch ? self.toggle.frame.minX - 14 - 12 : width - detailWidth - 62
+        self.name.frame = CGRect(x: 14, y: announcement ? 10 : (height - 24) / 2, width: max(0, titleWidth), height: 24)
         self.detail.frame = announcement ? CGRect(x: 14, y: 34, width: width - 62, height: 36) : CGRect(x: width - detailWidth - 38, y: (height - 24) / 2, width: detailWidth, height: 24)
         self.detail.numberOfLines = announcement ? 2 : 1
         self.detail.textAlignment = announcement ? .left : .right
         self.detail.font = announcement ? UIFont.theme.bodyMedium : UIFont.theme.bodyLarge
         self.indicator.frame = CGRect(x: width - 32, y: (height - 20) / 2, width: 18, height: 20)
-        self.toggle.sizeToFit()
-        self.toggle.center = CGPoint(x: width - self.toggle.bounds.width / 2 - 16, y: height / 2)
         self.line.frame = CGRect(x: 14, y: height - 0.5, width: width - 14, height: 0.5)
     }
     @objc private func toggleValueChanged() { self.toggleChanged?(self.toggle.isOn) }

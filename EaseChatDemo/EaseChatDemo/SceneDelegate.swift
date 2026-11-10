@@ -9,9 +9,46 @@ import UIKit
 import EaseChatUIKit
 import EaseCallUIKit
 
+enum DemoAppearanceMode: String, CaseIterable {
+    case system
+    case light
+    case dark
+
+    static var selected: Self {
+        get {
+            let defaults = UserDefaults.standard
+            if let saved = defaults.string(forKey: "EaseChatDemoAppearanceMode"),
+               let mode = Self(rawValue: saved) {
+                return mode
+            }
+            if let darkMode = defaults.object(forKey: "EaseChatDemoDarkMode") as? Bool {
+                return darkMode ? .dark : .light
+            }
+            return .system
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "EaseChatDemoAppearanceMode")
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .system: return "appearance_system".localized()
+        case .light: return "appearance_light".localized()
+        case .dark: return "appearance_dark".localized()
+        }
+    }
+
+    var interfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: return .unspecified
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
-    
-    @UserDefault("EaseChatDemoDarkMode", defaultValue: false) var darkMode: Bool
     
     @UserDefault("EaseChatDemoPreferencesLanguage", defaultValue: "zh-Hans") var language: String
 
@@ -57,20 +94,53 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         UITabBar.appearance().scrollEdgeAppearance = appearance
         //设置整个UIKit中的语言 目前只支持中英文
         Appearance.ease_chat_language = LanguageType(rawValue: self.language) ?? .Chinese
-        self.window = nil
-        self.window = UIWindow(windowScene: windowScene)
-        self.window?.backgroundColor = .black
-        self.window?.makeKeyAndVisible()
+        let window = UIWindow(windowScene: windowScene)
+        self.window = window
+        if #available(iOS 17.0, *) {
+            window.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (window: UIWindow, _) in
+                guard DemoAppearanceMode.selected == .system else { return }
+                self?.applyTheme(window.traitCollection.userInterfaceStyle)
+            }
+        }
+        self.applyAppearancePreference()
         self.chooseRootViewController()
-        self.switchTheme()
+        window.makeKeyAndVisible()
         NotificationCenter.default.addObserver(self, selector: #selector(loadMain), name: Notification.Name(loginSuccessfulSwitchMainPage), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(loadLogin), name: Notification.Name(backLoginPage), object: nil)
     }
     
-    private func switchTheme() {
-        EaseChatUIKit.Theme.registerSwitchThemeViews(view: self)
-        EaseChatUIKit.Theme.switchTheme(style: self.darkMode ? .dark:.light)
-        self.switchTheme(style: self.darkMode ? .dark:.light)
+    func applyAppearancePreference() {
+        guard let window, let windowScene = window.windowScene else { return }
+        let windowStyle = DemoAppearanceMode.selected.interfaceStyle
+        window.overrideUserInterfaceStyle = windowStyle
+        for otherWindow in windowScene.windows where otherWindow !== window {
+            otherWindow.overrideUserInterfaceStyle = windowStyle
+        }
+        let effectiveStyle = windowStyle == .unspecified ? windowScene.traitCollection.userInterfaceStyle : windowStyle
+        self.applyTheme(effectiveStyle)
+    }
+
+    private func applyTheme(_ interfaceStyle: UIUserInterfaceStyle) {
+        let dark = interfaceStyle == .dark
+        let chatStyle: EaseChatUIKit.ThemeStyle = dark ? .dark : .light
+        let callStyle: EaseCallUIKit.ThemeStyle = dark ? .dark : .light
+        if EaseCallUIKit.Theme.style != callStyle {
+            EaseCallUIKit.Theme.switchTheme(style: callStyle)
+        }
+        if EaseChatUIKit.Theme.style != chatStyle {
+            EaseChatUIKit.Theme.switchTheme(style: chatStyle)
+        }
+        self.window?.backgroundColor = dark ? UIColor.theme.neutralColor1 : UIColor.theme.neutralColor98
+    }
+
+    func windowScene(_ windowScene: UIWindowScene, didUpdate previousCoordinateSpace: UICoordinateSpace,
+                     interfaceOrientation previousInterfaceOrientation: UIInterfaceOrientation,
+                     traitCollection previousTraitCollection: UITraitCollection) {
+        if #available(iOS 17.0, *) { return }
+        let style = windowScene.traitCollection.userInterfaceStyle
+        if DemoAppearanceMode.selected == .system, previousTraitCollection.userInterfaceStyle != style {
+            self.applyTheme(style)
+        }
     }
     
     private func chooseRootViewController() {
@@ -103,7 +173,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneWillEnterForeground(_ scene: UIScene) {
         // Called as the scene transitions from the background to the foreground.
         // Use this method to undo the changes made on entering the background.
-        self.switchTheme(style: self.darkMode == false ? .light:.dark)
+        self.applyAppearancePreference()
         ChatClient.shared().applicationWillEnterForeground(UIApplication.shared)
     }
 
@@ -136,14 +206,5 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         DispatchQueue.main.async {
             self.window?.rootViewController = LoginViewController()
         }
-        
-    }
-
-}
-
-extension SceneDelegate: EaseChatUIKit.ThemeSwitchProtocol {
-    func switchTheme(style: EaseChatUIKit.ThemeStyle) {
-        self.window?.backgroundColor = style == .dark ? UIColor.theme.neutralColor1 : UIColor.theme.neutralColor98
-        UIApplication.shared.windows.forEach { $0.overrideUserInterfaceStyle = (style == .dark ? .dark:.light) }
     }
 }

@@ -9,10 +9,15 @@ import UIKit
 import EaseChatUIKit
 
 final class ThemesSettingViewController: UIViewController {
+    enum Setting {
+        case theme
+        case appearance
+    }
     
     @UserDefault("EaseChatDemoPreferencesTheme", defaultValue: 1) var theme: UInt
 
-    private var infos = ["Classic".localized(),"Smart".localized()]
+    private let setting: Setting
+    private var infos: [String] = []
     
     private var selectIndexPath = IndexPath(row: 0, section: 0)
         
@@ -24,24 +29,36 @@ final class ThemesSettingViewController: UIViewController {
         UITableView(frame: CGRect(x: 0, y: self.navigation.frame.maxY, width: self.view.frame.width, height: self.view.frame.height-NavigationHeight), style: .plain).separatorStyle(.none).tableFooterView(UIView()).backgroundColor(.clear).delegate(self).dataSource(self).rowHeight(54)
     }()
 
+    init(setting: Setting = .theme) {
+        self.setting = setting
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        self.selectIndexPath = IndexPath(row: Int(self.theme), section: 0)
+        switch self.setting {
+        case .theme:
+            self.infos = ["Classic".localized(), "Smart".localized()]
+            self.selectIndexPath = IndexPath(row: Int(self.theme), section: 0)
+            self.navigation.title = "switch_theme".localized()
+        case .appearance:
+            let modes = DemoAppearanceMode.allCases
+            self.infos = modes.map(\.title)
+            self.selectIndexPath = IndexPath(row: modes.firstIndex(of: DemoAppearanceMode.selected) ?? 0, section: 0)
+            self.navigation.title = "dark_mode".localized()
+        }
         self.view.addSubViews([self.navigation,self.infoList])
-        self.navigation.title = "switch_theme".localized()
         self.navigation.clickClosure = { [weak self] in
             consoleLogInfo("\($1?.row ?? 0)", type: .debug)
             switch $0 {
             case .back:
                 self?.navigationController?.popViewController(animated: true)
-            case  .rightTitle:
-                DialogManager.shared.showAlert(title: "Switch Theme".localized(), content: "Switch Theme".localized()+"Terminal Alert".localized(), showCancel: true, showConfirm: true) { [weak self] _ in
-                    guard let `self` = self else { return }
-                    self.theme = UInt(self.selectIndexPath.row)
-                    DispatchQueue.main.asyncAfter(wallDeadline: .now()+0.5) {
-                        exit(0)
-                    }
-                }
+            case .rightTitle:
+                self?.confirmSelection()
             default:
                 break
             }
@@ -51,10 +68,24 @@ final class ThemesSettingViewController: UIViewController {
         Theme.registerSwitchThemeViews(view: self)
         self.switchTheme(style: Theme.style)
     }
-    
 
-    
-
+    private func confirmSelection() {
+        switch self.setting {
+        case .theme:
+            DialogManager.shared.showAlert(title: "Switch Theme".localized(), content: "Switch Theme".localized()+"Terminal Alert".localized(), showCancel: true, showConfirm: true) { [weak self] _ in
+                guard let self else { return }
+                self.theme = UInt(self.selectIndexPath.row)
+                DispatchQueue.main.asyncAfter(wallDeadline: .now()+0.5) {
+                    exit(0)
+                }
+            }
+        case .appearance:
+            guard let mode = DemoAppearanceMode.allCases[safe: self.selectIndexPath.row] else { return }
+            DemoAppearanceMode.selected = mode
+            (self.view.window?.windowScene?.delegate as? SceneDelegate)?.applyAppearancePreference()
+            self.navigationController?.popViewController(animated: true)
+        }
+    }
 }
 
 extension ThemesSettingViewController: UITableViewDelegate,UITableViewDataSource {
