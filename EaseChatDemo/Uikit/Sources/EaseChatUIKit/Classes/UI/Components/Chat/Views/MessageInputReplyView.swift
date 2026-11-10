@@ -56,7 +56,7 @@ import UIKit
             AttributedText(replyTo).font(Font.theme.labelSmall).foregroundColor(Theme.style == .dark ? UIColor.theme.neutralSpecialColor6:UIColor.theme.neutralSpecialColor5)
         }
         self.replyContent.attributedText = self.constructReplyContent(message: message, replyTo: replyTo)
-        if message.body.type == .image || message.body.type == .video {
+        if message.contentType == .image || message.contentType == .video {
             self.replyIcon.isHidden = false
         } else {
             self.replyIcon.isHidden = true
@@ -75,7 +75,7 @@ import UIKit
                 ImageAttachment(icon, bounds: CGRect(x: 0, y: -3.5, width: 16, height: 16))
             })
         }
-        if message.body.type == .text {
+        if message.contentType == .text {
             reply.append(NSAttributedString {
                 AttributedText(message.showContent).font(Font.theme.bodySmall).foregroundColor(Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor5)
             })
@@ -89,6 +89,7 @@ import UIKit
     }
     
     private func constructIcon(message: ChatMessage) {
+        guard !message.isCompositeMessage else { return }
         if let body = message.body as? ChatImageMessageBody {
             self.replyIcon.image(with: body.thumbnailRemotePath, placeHolder: Theme.style == .dark ? self.icon(message: message)?.withTintColor(UIColor.theme.neutralColor5):self.icon(message: message))
         }

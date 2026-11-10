@@ -12,6 +12,7 @@ import UIKit
     public private(set) var messages = [ChatMessage]()
     
     private var combineForward = true
+    private var imageBodyIndex: Int?
     
     private var index = 0
     
@@ -35,7 +36,13 @@ import UIKit
         }
     }
     
-    private var forwarded = false
+    private struct Target: Hashable {
+        let id: String
+        let type: EMChatType
+    }
+
+    private var pendingTargets = Set<Target>()
+    private var forwardedTargets = Set<Target>()
     
     private var searchResults = [ChatUserProfileProtocol]()
     
@@ -86,6 +93,11 @@ import UIKit
         self.combineForward = combine
         super.init(nibName: nil, bundle: nil)
     }
+
+    public convenience init(message: ChatMessage, imageBodyIndex: Int) {
+        self.init(messages: [message], combine: false)
+        self.imageBodyIndex = imageBodyIndex
+    }
     
     public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -97,7 +109,7 @@ import UIKit
     
     open override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        self.dismissClosure?(self.forwarded)
+        self.dismissClosure?(!self.forwardedTargets.isEmpty)
     }
     
     open override func viewDidLoad() {
@@ -183,14 +195,10 @@ extension ForwardTargetViewController: UITableViewDelegate,UITableViewDataSource
             cell = ForwardTargetCell(style: .default, reuseIdentifier: "ForwardTargetCell")
         }
         cell?.selectionStyle = .none
-        if self.searchMode {
-            if let info = self.searchResults[safe: indexPath.row] {
-                cell?.refresh(info: info, keyword: self.searchKeyWord, forward: .normal)
-            }
-        } else {
-            if let info = self.datas[safe: indexPath.row] {
-                cell?.refresh(info: info, keyword: "", forward: .normal)
-            }
+        if let info = (self.searchMode ? self.searchResults : self.datas)[safe: indexPath.row] {
+            let target = Target(id: info.id, type: self.index == 0 ? .chat : .groupChat)
+            let state: ForwardTargetState = self.forwardedTargets.contains(target) ? .forwarded : .normal
+            cell?.refresh(info: info, keyword: self.searchMode ? self.searchKeyWord : "", forward: state)
         }
         
         cell?.actionClosure = { [weak self] in
@@ -202,37 +210,141 @@ extension ForwardTargetViewController: UITableViewDelegate,UITableViewDataSource
     }
     
     @objc open func forwardMessages(indexPath: IndexPath) {
-        if var body = self.messages.first?.body {
-            if self.combineForward {
-                body = ChatCombineMessageBody(title: "Chat History".chat.localize, summary: self.forwardSummary(), compatibleText: "[Chat History]", messageIdList: self.messages.filter({ChatClient.shared().chatManager?.getMessageWithMessageId($0.messageId)?.status == .succeed}).map({ $0.messageId }))
+        guard let original = self.messages.first,
+              let profile = (self.searchMode ? self.searchResults : self.datas)[safe: indexPath.row] else { return }
+        let target = Target(id: profile.id, type: self.index == 0 ? .chat : .groupChat)
+        guard !self.pendingTargets.contains(target), !self.forwardedTargets.contains(target) else { return }
+
+        let message: ChatMessage
+        if self.combineForward {
+            let body = ChatCombineMessageBody(title: "Chat History".chat.localize, summary: self.forwardSummary(), compatibleText: "[Chat History]", messageIdList: self.messages.filter({ChatClient.shared().chatManager?.getMessageWithMessageId($0.messageId)?.status == .succeed}).map({ $0.messageId }))
+            message = ChatMessage(conversationID: target.id, body: body, ext: nil)
+        } else if let imageBodyIndex {
+            let directory = ChatClient.shared().chatManager?.getMessageAttachmentPath(target.id)
+            guard let image = original.bodies[safe: imageBodyIndex] as? ChatImageMessageBody,
+                  let body = self.copyForwardAttachment(image, attachmentPath: directory) else {
+                self.showToast(toast: "Failed to forward message".chat.localize)
+                return
             }
-            
-            var conversationId = ""
-            if self.searchMode {
-                conversationId = self.searchResults[indexPath.row].id
-            } else {
-                conversationId = self.datas[indexPath.row].id
+            message = ChatMessage(conversationID: target.id, body: body, ext: nil)
+        } else if original.isCompositeMessage {
+            guard let composite = self.compositeForward(from: original, to: target.id) else {
+                self.showToast(toast: "Unable to forward composite message".chat.localize)
+                return
             }
-            let message =  ChatMessage(conversationID: conversationId, body: body, ext: nil)
-            message.chatType = self.index == 0 ? .chat:.groupChat
-            message.isNeedReadReceipt = true
-            ChatServiceImplement(to: conversationId).send(message: message, completion: { [weak self] error, successMessage in
-                guard let `self` = self else { return }
+            message = composite
+        } else {
+            message = ChatMessage(conversationID: target.id, body: original.body, ext: nil)
+        }
+
+        message.chatType = target.type
+        message.isNeedReadReceipt = true
+        self.pendingTargets.insert(target)
+        ChatServiceImplement(to: target.id).send(message: message, completion: { [weak self] error, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pendingTargets.remove(target)
                 if error == nil {
-                    self.forwarded = true
-                    if let cell = self.targetsList.cellForRow(at: indexPath) as? ForwardTargetCell {
-                        var profile = ChatUserProfile()
-                        if let user = (self.searchMode ? self.searchResults:self.datas)[safe: indexPath.row] as? ChatUserProfile {
-                            profile = user
-                        }
-                        cell.refresh(info: profile, keyword: self.searchKeyWord, forward: .forwarded)
-                    }
+                    self.forwardedTargets.insert(target)
+                    self.targetsList.reloadData()
                 } else {
-                    self.showToast(toast: error?.errorDescription ?? "Failed to forward message")
+                    self.showToast(toast: error?.errorDescription ?? "Failed to forward message".chat.localize)
                     consoleLogInfo("ForwardTargetViewController forwardMessages error:\(error?.errorDescription ?? "")", type: .error)
                 }
-            })
+            }
+        })
+    }
+
+    private func compositeForward(from original: ChatMessage, to conversationID: String) -> ChatMessage? {
+        let attachmentPath = ChatClient.shared().chatManager?.getMessageAttachmentPath(conversationID)
+        let originalBodies = original.bodies
+        let bodies = originalBodies.compactMap { self.copyForwardBody($0, attachmentPath: attachmentPath) }
+        guard bodies.count == originalBodies.count, bodies.count > 1 else { return nil }
+
+        var ext = original.ext
+        ext?.removeValue(forKey: groupReceiptRecipientCountKey)
+        return ChatMessage(conversationID: conversationID, bodies: bodies, ext: ext)
+    }
+
+    private func copyForwardBody(_ body: ChatMessageBody, attachmentPath: String?) -> ChatMessageBody? {
+        switch body {
+        case let text as ChatTextMessageBody:
+            return ChatTextMessageBody(text: text.text)
+        case let location as ChatLocationMessageBody:
+            return ChatLocationMessageBody(latitude: location.latitude, longitude: location.longitude,
+                                           address: location.address, buildingName: location.buildingName)
+        case let custom as ChatCustomMessageBody:
+            return ChatCustomMessageBody(event: custom.event, customExt: custom.customExt)
+        case let file as ChatFileMessageBody:
+            return self.copyForwardAttachment(file, attachmentPath: attachmentPath)
+        default:
+            return nil
         }
+    }
+
+    private func copyForwardAttachment(_ source: ChatFileMessageBody, attachmentPath: String?) -> ChatFileMessageBody? {
+        guard let attachmentPath, !attachmentPath.isEmpty else { return nil }
+
+        let image = source as? ChatImageMessageBody
+        let originalURL = self.forwardableURL(source.remotePath)
+        let largeImageURL = self.forwardableURL(image?.bigImageRemotePath)
+        let thumbnailURL = self.forwardableURL(image?.thumbnailRemotePath)
+        guard let remotePath = originalURL ?? largeImageURL ?? thumbnailURL else { return nil }
+        let usesThumbnail = originalURL == nil && largeImageURL == nil
+
+        // Give the new message its own download destinations and keep the original message's cached files separate.
+        let destination = URL(fileURLWithPath: attachmentPath, isDirectory: true).appendingPathComponent(UUID().uuidString)
+        let name = source.displayName ?? ""
+        let fileExtension = (name as NSString).pathExtension
+        let localPath = fileExtension.isEmpty ? destination.path : destination.appendingPathExtension(fileExtension).path
+        let thumbnailPath = destination.appendingPathExtension("thumbnail").path
+
+        let attachment: ChatFileMessageBody
+        switch source {
+        case let image as ChatImageMessageBody:
+            let copy = ChatImageMessageBody(localPath: localPath, displayName: name)
+            copy.size = usesThumbnail ? image.thumbnailSize : image.size
+            copy.isGif = image.isGif
+            copy.isOriginalImage = usesThumbnail || image.isOriginalImage
+            copy.thumbnailLocalPath = thumbnailPath
+            copy.thumbnailRemotePath = image.thumbnailRemotePath
+            // A separately uploaded thumbnail can have a different share secret from the original image.
+            copy.thumbnailSecretKey = image.thumbnailSecretKey
+            copy.thumbnailSize = image.thumbnailSize
+            copy.thumbnailFileLength = image.thumbnailFileLength
+            attachment = copy
+        case let video as ChatVideoMessageBody:
+            let copy = ChatVideoMessageBody(localPath: localPath, displayName: name)
+            copy.duration = video.duration
+            copy.thumbnailLocalPath = thumbnailPath
+            copy.thumbnailRemotePath = video.thumbnailRemotePath
+            copy.thumbnailSecretKey = video.thumbnailSecretKey
+            copy.thumbnailSize = video.thumbnailSize
+            attachment = copy
+        case let voice as ChatAudioMessageBody:
+            let copy = ChatAudioMessageBody(localPath: localPath, displayName: name)
+            copy.duration = voice.duration
+            attachment = copy
+        default:
+            guard source.type == .file else { return nil }
+            attachment = ChatFileMessageBody(localPath: localPath, displayName: name)
+        }
+        attachment.remotePath = remotePath
+        if usesThumbnail, let image {
+            attachment.secretKey = image.thumbnailSecretKey
+            attachment.fileLength = image.thumbnailFileLength
+        } else {
+            attachment.secretKey = source.secretKey
+            attachment.fileLength = source.fileLength
+        }
+        return attachment
+    }
+
+    private func forwardableURL(_ value: String?) -> String? {
+        guard let value, let url = URLComponents(string: value),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = url.host, !host.isEmpty else { return nil }
+        return value
     }
     
     @objc open func forwardSummary() -> String {

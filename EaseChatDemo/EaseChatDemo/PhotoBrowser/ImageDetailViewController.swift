@@ -16,6 +16,7 @@ final class ImageDetailViewController: UIViewController {
 
     private var message: ChatMessage
     private let thumbnail: UIImage?
+    private let bodyIndex: Int?
 
     private var largeImage: UIImage?
     private var originalImage: UIImage?
@@ -32,12 +33,17 @@ final class ImageDetailViewController: UIViewController {
     private let progressLabel = UILabel()
 
     private var imageBody: ChatImageMessageBody? {
-        message.body as? ChatImageMessageBody
+        if let bodyIndex {
+            guard message.bodies.indices.contains(bodyIndex) else { return nil }
+            return message.bodies[bodyIndex] as? ChatImageMessageBody
+        }
+        return message.body as? ChatImageMessageBody
     }
 
-    init(message: ChatMessage, thumbnail: UIImage? = nil) {
+    init(message: ChatMessage, thumbnail: UIImage? = nil, bodyIndex: Int? = nil) {
         self.message = message
         self.thumbnail = thumbnail
+        self.bodyIndex = bodyIndex
         super.init(nibName: nil, bundle: nil)
         self.modalPresentationStyle = .overFullScreen
         self.modalTransitionStyle = .crossDissolve
@@ -158,7 +164,12 @@ final class ImageDetailViewController: UIViewController {
     private var largeImageFile: String? { existingPath(pathInCurrentContainer(imageBody?.bigImageLocalPath)) }
 
     /// 原图 file, if it is on disk.
-    private var originalImageFile: String? { existingPath(pathInCurrentContainer(imageBody?.localPath)) }
+    private var originalImageFile: String? {
+        if let bodyIndex {
+            return message.cachedCompositeImagePath(at: bodyIndex, originalOnly: true)
+        }
+        return existingPath(pathInCurrentContainer(imageBody?.localPath))
+    }
 
     private func existingPath(_ path: String?) -> String? {
         guard let path, !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return nil }
@@ -176,6 +187,8 @@ final class ImageDetailViewController: UIViewController {
     private func loadInitialImage() {
         if let image = image(at: largeImageFile) {
             show(image, original: false)
+        } else if bodyIndex != nil, let image = image(at: originalImageFile) {
+            show(image, original: true)
         } else {
             showThumbnail()
             downloadLargeImage()
@@ -310,10 +323,14 @@ final class ImageDetailViewController: UIViewController {
     /// behind by a previous installation into the current container and create their folders.
     private func prepareDownload() -> Bool {
         guard let body = imageBody else { return false }
-        body.localPath = pathInCurrentContainer(body.localPath)
-        body.bigImageLocalPath = pathInCurrentContainer(body.bigImageLocalPath)
+        let localPath = pathInCurrentContainer(body.localPath)
+        let largePath = pathInCurrentContainer(body.bigImageLocalPath)
+        if bodyIndex == nil {
+            body.localPath = localPath
+            body.bigImageLocalPath = largePath
+        }
 
-        for path in [body.localPath, body.bigImageLocalPath] {
+        for path in [localPath, largePath] {
             guard let path, !path.isEmpty else { continue }
             let directory = (path as NSString).deletingLastPathComponent
             guard directory.hasPrefix(NSHomeDirectory()) else {
@@ -488,7 +505,12 @@ final class ImageDetailViewController: UIViewController {
     }
 
     private func forwardMessage() {
-        let controller = ForwardTargetViewController(messages: [message], combine: false)
+        let controller: ForwardTargetViewController
+        if let bodyIndex {
+            controller = ForwardTargetViewController(message: message, imageBodyIndex: bodyIndex)
+        } else {
+            controller = ForwardTargetViewController(messages: [message], combine: false)
+        }
         present(controller, animated: true)
     }
 }

@@ -60,14 +60,7 @@ import AVFoundation
     @objc public func playRecording(stopPlay: @escaping () -> Void) {
         guard let url = self.audioFileURL else { return }
         if AudioTools.canPlay(url: url) {
-            guard let fileURL = self.audioFileURL else { return }
-            do {
-                self.audioPlayer = try AVAudioPlayer(contentsOf: fileURL)
-                self.audioPlayer?.delegate = self
-                self.audioPlayer?.play()
-            } catch {
-                consoleLogInfo("Failed to play recording: \(error.localizedDescription)", type: .error)
-            }
+            self.playFile(at: url.path) { _ in stopPlay() }
         } else {
             if let path = MediaConvertor.convertAMRToWAV(url: url).1 {
                 self.audioFileURL = URL(fileURLWithPath: path)
@@ -78,14 +71,22 @@ import AVFoundation
     }
     
     @objc public func playRecording(path: String,stopPlay: @escaping (String) -> Void) {
-        self.stopPlayClosure = stopPlay
-        let fileURL = URL(fileURLWithPath: path)
+        self.playFile(at: path, onStop: stopPlay)
+    }
+
+    @discardableResult
+    func playFile(at path: String, onStop: @escaping (String) -> Void) -> Bool {
+        self.stopPlaying()
         do {
-            self.audioPlayer = try AVAudioPlayer(contentsOf: fileURL)
-            self.audioPlayer?.delegate = self
-            self.audioPlayer?.play()
+            let player = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: path))
+            player.delegate = self
+            guard player.play() else { return false }
+            self.audioPlayer = player
+            self.stopPlayClosure = onStop
+            return true
         } catch {
             consoleLogInfo("Failed to play recording: \(error.localizedDescription)", type: .error)
+            return false
         }
     }
     
@@ -109,8 +110,12 @@ import AVFoundation
     }
     
     @objc public func stopPlaying() {
-        self.audioPlayer?.stop()
+        let player = self.audioPlayer
+        let onStop = self.stopPlayClosure
         self.audioPlayer = nil
+        self.stopPlayClosure = nil
+        player?.stop()
+        if let player { onStop?(player.url?.path ?? "") }
     }
     
 }
@@ -118,11 +123,9 @@ import AVFoundation
 extension AudioTools: AVAudioPlayerDelegate,AVAudioRecorderDelegate {
     
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        if flag {
-            self.stopPlayClosure?(player.url?.path ?? "")
-        } else {
-            consoleLogInfo("play audio error", type: .error)
-        }
+        guard player === self.audioPlayer else { return }
+        if !flag { consoleLogInfo("play audio error", type: .error) }
+        self.stopPlaying()
     }
     
     public func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {

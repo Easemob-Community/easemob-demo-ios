@@ -33,20 +33,24 @@ import UIKit
     }
 
     @objc public func refresh(entity: MessageEntity) {
-        self.towards = entity.message.direction == .receive ? .left:.right
+        self.refresh(durationText: entity.message.showContent, direction: entity.message.direction, playing: entity.playing)
+    }
+
+    func refresh(durationText: String, direction: EMMessageDirection, playing: Bool) {
+        self.towards = direction == .receive ? .left:.right
         self.content.frame = CGRect(x: self.towards == .left ? 12+20+8:12, y: 5, width: self.frame.width-32-20, height: self.frame.height-10)
         self.audioIcon.frame = CGRect(x: self.towards == .left ? 12:self.frame.width-12-20, y: self.frame.height/2.0-10, width: 20, height: 20)
         self.switchTheme(style: Theme.style)
         var textColor = UIColor.white
-        if entity.message.direction == .send {
+        if direction == .send {
             textColor = Theme.style == .dark ? UIColor.theme.neutralColor1:UIColor.theme.neutralColor98
         } else {
             textColor = Theme.style == .dark ? UIColor.theme.neutralColor98:UIColor.theme.neutralColor1
         }
         self.content.textColor = textColor
-        self.content.textAlignment = entity.message.direction == .receive ? .right:.left
-        self.content.text = entity.message.showContent
-        if entity.playing {
+        self.content.textAlignment = direction == .receive ? .right:.left
+        self.content.text = durationText
+        if playing {
             self.audioIcon.startAnimating()
         } else {
             self.audioIcon.stopAnimating()

@@ -602,6 +602,9 @@ extension MessageListView: UITableViewDelegate,UITableViewDataSource {
         }
         if let message = self.messages[safe: indexPath.row]?.message {
             let towards: BubbleTowards = message.direction.rawValue == 0 ? .right:.left
+            if message.isCompositeMessage {
+                return self.getMessageCell(cellClass: CompositeMessageCell.self, towards: towards, identifier: "EaseChatUIKit.CompositeMessageCell")
+            }
             switch message.body.type {
             case .text:
                 return self.getMessageCell(cellClass: ComponentsRegister.shared.ChatTextMessageCell, towards: towards, identifier: "EaseChatUIKit.ChatTextMessageCell")
@@ -1046,6 +1049,12 @@ extension MessageListView: IMessageListViewDriver {
     
     public func updateMessageAttachmentStatus(message: ChatMessage) {
         if let index = self.messages.firstIndex(where: { $0.message.messageId == message.messageId }) {
+            if message.isCompositeMessage {
+                let entity = self.messages[index]
+                entity.message = message
+                (self.messageList.cellForRow(at: IndexPath(row: index, section: 0)) as? CompositeMessageCell)?.refresh(entity: entity)
+                return
+            }
             self.messages[index].state = self.convertStatus(message: message)
             self.messageList.beginUpdates()
             self.messageList.reloadRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
@@ -1132,6 +1141,7 @@ extension MessageListView: IMessageListViewDriver {
     }
     
     private func convertURLPreview(entity: MessageEntity) {
+        guard !entity.message.isCompositeMessage else { return }
         if Appearance.chat.enableURLPreview {
             if let dic = entity.message.ext?["ease_chat_uikit_text_url_preview"] as? Dictionary<String,String> {
                 if let status = dic["status"] {

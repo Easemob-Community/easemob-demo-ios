@@ -48,7 +48,13 @@ import UIKit
     }
     
     @objc public func refresh(entity: MessageEntity) {
-        self.towards = entity.message.direction == .receive ? .left:.right
+        self.refresh(name: entity.message.showContent,
+                     length: (entity.message.body as? ChatFileMessageBody)?.fileLength,
+                     direction: entity.message.direction)
+    }
+
+    func refresh(name: String, length: Int64?, direction: EMMessageDirection) {
+        self.towards = direction == .receive ? .left:.right
         self.fileIcon.frame = CGRect(x: self.towards == .right ? 8:self.frame.width - (self.frame.height - 16) - 8, y: 8, width: self.frame.height - 16, height: self.frame.height - 16)
         self.fileIconView.frame = CGRect(x: 6, y: 6, width: self.fileIcon.frame.height-12, height: self.fileIcon.frame.height-12)
         self.content.frame = CGRect(x: self.towards == .left ? 12:self.fileIcon.frame.maxX+12, y: 5, width: self.frame.width - (self.frame.height - 16) - 16 - 12, height: 24)
@@ -62,10 +68,8 @@ import UIKit
             self.content.textColor = Theme.style == .dark ? UIColor.theme.neutralSpecialColor6:UIColor.theme.neutralSpecialColor5
             self.fileSize.textColor = self.fileSizeReceiveColor
         }
-        self.content.text = entity.message.showContent
-        if let body = entity.message.body as? ChatFileMessageBody {
-            self.fileSize.text = "\(self.formatFileSize(Int(body.fileLength)))"
-        }
+        self.content.text = name
+        self.fileSize.text = length.map { self.formatFileSize(Int($0)) }
     }
     
     func formatFileSize(_ fileSize: Int) -> String {

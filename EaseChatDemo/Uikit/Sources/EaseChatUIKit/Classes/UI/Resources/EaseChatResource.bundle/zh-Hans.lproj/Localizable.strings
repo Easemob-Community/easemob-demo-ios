@@ -264,3 +264,8 @@
 "group_receipt_no_read_members" = "暂无已读成员";
 "group_receipt_no_unread_members" = "暂无可显示的未读成员";
 "group_receipt_partial_roster" = "仅显示当前仍在群内的成员，历史名单可能不完整";
+"[Composite message]" = "[复合消息]";
+"[Custom message]" = "[自定义消息]";
+"Unable to open attachment" = "无法打开附件";
+"Unable to forward composite message" = "无法转发这条复合消息";
+"Failed to forward message" = "消息转发失败";

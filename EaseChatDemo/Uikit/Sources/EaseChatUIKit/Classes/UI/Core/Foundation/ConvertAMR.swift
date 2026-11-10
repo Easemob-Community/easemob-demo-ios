@@ -80,7 +80,7 @@ func convertAMRNBToWave(data : Data) -> Data? {
 /// - Parameter data: amr-wb data
 /// - Returns: wave data
 func convertAMRWBToWave(data : Data) -> Data? {
-    return convertAmrToWave(isWB: false, data: data)
+    return convertAmrToWave(isWB: true, data: data)
 }
 
 /// Read wave data chunk structure, if the data format is unknown, return nil.

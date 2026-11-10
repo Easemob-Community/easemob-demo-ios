@@ -117,6 +117,7 @@ extension ChatHistoryViewController: UITableViewDelegate,UITableViewDataSource {
     
     public func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         guard let message = self.messages[safe: indexPath.row] else { return 62 }
+        if message.message.isCompositeMessage { return message.bubbleSize.height + 40 }
         if message.message.body.type == .text || message.message.body.type == .image || message.message.body.type == .video {
             return message.bubbleSize.height+(message.message.body.type != .text ? 40:30)
         } else {
@@ -126,9 +127,10 @@ extension ChatHistoryViewController: UITableViewDelegate,UITableViewDataSource {
     
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         guard let message = self.messages[safe: indexPath.row] else { return UITableViewCell() }
-        var cell = tableView.dequeueReusableCell(withIdentifier: "CombineChatHistoryCell") as? ChatHistoryCell
+        let identifier = message.message.isCompositeMessage ? "CompositeChatHistoryCell" : "CombineChatHistoryCell"
+        var cell = tableView.dequeueReusableCell(withIdentifier: identifier) as? ChatHistoryCell
         if cell == nil {
-            cell = ChatHistoryCell(reuseIdentifier: "CombineChatHistoryCell", message: message.message)
+            cell = ChatHistoryCell(reuseIdentifier: identifier, message: message.message)
         }
         cell?.selectionStyle = .none
         cell?.refresh(entity: message)

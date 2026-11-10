@@ -77,6 +77,8 @@ import UIKit
     public var replyClicked: ((MessageEntity) -> Void)?
     
     public var bubbleClicked: ((MessageEntity) -> Void)?
+    /// Return true after presenting the image segment in the app's image viewer.
+    public var compositeImageClicked: ((ChatMessage, Int, UIImage?) -> Bool)?
     
     public var bubbleLongPressed: ((MessageEntity) -> Void)?
     

@@ -55,7 +55,7 @@ import UIKit
         if let content = entity.replyContent,content.string != "message doesn't exist".chat.localize {
             self.replyUser.isHidden = false
             self.replyIcon.isHidden = false
-            if message.body.type == .image || message.body.type == .video {
+            if message.contentType == .image || message.contentType == .video {
                 self.replyUser.frame = CGRect(x: 12, y: 8, width: self.frame.width-24-36-8, height: 16)
             } else {
                 self.replyUser.frame = CGRect(x: 12, y: 8, width: self.frame.width-24, height: 16)
@@ -79,6 +79,11 @@ import UIKit
     }
     
     private func constructIcon(message: ChatMessage) {
+        if message.isCompositeMessage {
+            self.replyIcon.isHidden = true
+            self.videoPlay.isHidden = true
+            return
+        }
         if let body = message.body as? ChatVideoMessageBody,let path = body.thumbnailRemotePath {
             if path.isEmpty {
                 self.replyIcon.image = self.replyVideoImage
