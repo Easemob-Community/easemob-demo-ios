@@ -76,7 +76,8 @@ public let urlPreviewImageHeight = CGFloat(137)
         if self.isTimeDivider {
             return true
         }
-        if let body = self.message.body as? ChatCustomMessageBody,body.event == EaseChatUIKit_alert_message {
+        if !self.message.isCompositeMessage,
+           let body = self.message.body as? ChatCustomMessageBody,body.event == EaseChatUIKit_alert_message {
             return true
         }
         return false
@@ -265,7 +266,7 @@ public let urlPreviewImageHeight = CGFloat(137)
         let replyBlock: CGFloat = (Appearance.chat.contentStyle.contains(.withReply) && self.replySize.height > 0) ? self.replySize.height+2:0
         let bottomBlock: CGFloat = Appearance.chat.contentStyle.contains(.withDateAndTime) ? 34:18
         let contentHeight = nickBlock+replyBlock+self.bubbleSize.height+bottomBlock+self.topicContentHeight()+self.reactionContentHeight()+self.bottomAccessoryHeight
-        if message.body.type != .custom {
+        if message.contentType != .custom {
             return contentHeight
         } else {
             if let body = self.message.body as? ChatCustomMessageBody,body.event == EaseChatUIKit_user_card_message {
@@ -389,6 +390,9 @@ public let urlPreviewImageHeight = CGFloat(137)
     /// Calculate bubble size.
     /// - Returns: ``CGSize`` of bubble.
     open func updateBubbleSize() -> CGSize {
+        if self.message.isCompositeMessage {
+            return CompositeMessageContentView.size(for: self.message)
+        }
         switch self.message.body.type {
         case .text: return self.textBubbleSize()
         case .image: return self.thumbnailSize(video: false)
@@ -585,8 +589,12 @@ public let urlPreviewImageHeight = CGFloat(137)
     }
     
     open func audioSize() -> CGSize {
+        Self.audioSize(duration: Int((self.message.body as? ChatAudioMessageBody)?.duration ?? 1))
+    }
+
+    static func audioSize(duration: Int) -> CGSize {
         var size = CGSize.zero
-        switch Int((self.message.body as? ChatAudioMessageBody)?.duration ?? 1) {
+        switch duration {
         case 0...9:
             size = CGSize(width: 75, height: audioHeight)
         case 10...19:
@@ -877,7 +885,7 @@ public let urlPreviewImageHeight = CGFloat(137)
     /// voice-to-text card in this space,and ``MessageCell`` subtracts the same amount from its
     /// bottom-anchored layout so the bubble lifts instead of overlapping the card.
     public var bottomAccessoryHeight: CGFloat {
-        if self.historyMessage || self.message.body.type != .voice {
+        if self.historyMessage || self.message.contentType != .voice {
             return 0
         }
         let transcriptionSize = self.voiceTranscriptionSize()
@@ -901,7 +909,8 @@ public let urlPreviewImageHeight = CGFloat(137)
                 labelContent.attributedText = attributeContent
                 let titleSize = labelTitle.sizeThatFits(CGSize(width: limitBubbleWidth, height: 16))
                 let contentSize = labelContent.sizeThatFits(CGSize(width: limitBubbleWidth, height: 36))
-                if self.message.quoteMessage!.body.type == .image || self.message.quoteMessage!.body.type == .video {
+                let quoteType = self.message.quoteMessage?.contentType
+                if quoteType == .image || quoteType == .video {
                     return CGSize(width: (titleSize.width > contentSize.width ? titleSize.width:contentSize.width)+78, height: 36+16)
                 } else {
                     return CGSize(width: (titleSize.width > contentSize.width ? titleSize.width:contentSize.width)+24, height: contentSize.height+34)
@@ -929,12 +938,12 @@ public let urlPreviewImageHeight = CGFloat(137)
                         ImageAttachment(icon, bounds: CGRect(x: 0, y: -4, width: 18, height: 18))
                     })
                 }
-                switch quoteMessage.body.type {
+                switch quoteMessage.contentType {
                 case .text:
                     reply.append(NSAttributedString {
                         AttributedText(quoteMessage.showType).font(Font.theme.labelMedium).foregroundColor(Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor5).lineBreakMode(.byWordWrapping)
                     })
-                case .image,.video,.combine,.location:
+                case .image,.video,.combine,.location,.multiBody:
                     reply.append(NSAttributedString {
                         AttributedText(quoteMessage.showType).font(Font.theme.labelMedium).foregroundColor(Theme.style == .dark ? Color.theme.neutralColor6:Color.theme.neutralColor5).lineBreakMode(.byWordWrapping)
                     })
@@ -1091,6 +1100,7 @@ extension ChatMessage {
     @objc open var showType: String {
         if self.hidesModeratorRecallNotice { return "" }
         if let notice = self.localSystemNoticeText { return notice }
+        if self.isCompositeMessage { return "[Composite message]".chat.localize }
         var text = "[unknown]".chat.localize
         switch self.body.type {
         case .text: text = (self.body as? ChatTextMessageBody)?.text ?? ""
@@ -1116,6 +1126,7 @@ extension ChatMessage {
     }
     
     @objc open var replyIcon: UIImage? {
+        if self.isCompositeMessage { return nil }
         switch self.body.type {
         case .image:
             return UIImage(chatNamed: "reply_image")
@@ -1145,6 +1156,7 @@ extension ChatMessage {
     @objc open var showContent: String {
         if self.hidesModeratorRecallNotice { return "" }
         if let notice = self.localSystemNoticeText { return notice }
+        if self.isCompositeMessage { return "" }
         var text = ""
         switch self.body.type {
         case .text: text = (self.body as? ChatTextMessageBody)?.text ?? ""
@@ -1164,6 +1176,16 @@ extension ChatMessage {
         default: break
         }
         return text
+    }
+
+    var quoteExtension: [String: String] {
+        let types: [ChatMessageBodyType: String] = [
+            .text: "txt", .image: "img", .video: "video", .voice: "audio",
+            .custom: "custom", .cmd: "cmd", .file: "file", .location: "location",
+            .combine: "combine", .multiBody: "multi_body"
+        ]
+        return ["msgID": messageId, "msgPreview": isCompositeMessage ? showType : showContent,
+                "msgSender": from, "msgType": types[contentType] ?? ""]
     }
     
     /// Text message if you were mentioned,the property isn't empty.

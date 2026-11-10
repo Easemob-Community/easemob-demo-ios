@@ -19,6 +19,34 @@ public extension ChatImageMessageBody {
 
 /// Ensure the exact SDK download destination is usable without changing message metadata.
 enum MessageAttachmentFiles {
+    static func isReadableFile(at path: String) -> Bool {
+        let manager = FileManager.default
+        var isDirectory: ObjCBool = false
+        return manager.fileExists(atPath: path, isDirectory: &isDirectory)
+            && !isDirectory.boolValue && manager.isReadableFile(atPath: path)
+    }
+
+    /// Recover a completed SDK download when its collision-renamed path is not exposed by the body wrapper.
+    static func compositeDownloadPath(in directory: String, bodyIndex: Int, remotePath: String?, displayName: String?) -> String? {
+        guard !directory.isEmpty, bodyIndex >= 0,
+              let remotePath, let attachmentID = URL(string: remotePath)?.lastPathComponent,
+              UUID(uuidString: attachmentID) != nil else { return nil }
+        let prefix = "body_\(bodyIndex)_\(attachmentID)"
+        let fileExtension = ((displayName ?? "") as NSString).pathExtension
+        let folder = URL(fileURLWithPath: directory, isDirectory: true)
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys)) else { return nil }
+        let suffixPattern = #"^(?:\([0-9]+\))*$"#
+        return files.compactMap { file -> (path: String, date: Date)? in
+            guard file.pathExtension.caseInsensitiveCompare(fileExtension) == .orderedSame else { return nil }
+            let stem = file.deletingPathExtension().lastPathComponent
+            guard stem.hasPrefix(prefix), stem.dropFirst(prefix.count).range(of: suffixPattern, options: .regularExpression) != nil,
+                  let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true,
+                  isReadableFile(at: file.path) else { return nil }
+            return (file.path, values.contentModificationDate ?? .distantPast)
+        }.max { $0.date < $1.date }?.path
+    }
+
     static func existingPathInCurrentContainer(_ path: String?) -> String? {
         guard let path = path, !path.isEmpty else { return path }
         let manager = FileManager.default
@@ -38,8 +66,12 @@ enum MessageAttachmentFiles {
     }
 
     static func prepareDownload(for message: ChatMessage) throws {
-        guard let body = message.body as? ChatFileMessageBody,
-              let path = body.localPath, !path.isEmpty else { return }
+        guard let body = message.body as? ChatFileMessageBody else { return }
+        try prepareDownload(for: body)
+    }
+
+    static func prepareDownload(for body: ChatFileMessageBody) throws {
+        guard let path = body.localPath, !path.isEmpty else { return }
         let manager = FileManager.default
         let destination = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
         let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).resolvingSymlinksInPath().path
@@ -155,7 +187,7 @@ open class MediaConvertor: NSObject {
             let data = try Data(contentsOf: url)
             let path = url.path
             let filePath = (path.components(separatedBy: ".").first ?? String(url.path.dropLast(4)))+".wav"
-            let wave = convertAMRWBToWave(data: data)
+            let wave = convertAMRNBToWave(data: data) ?? convertAMRWBToWave(data: data)
             if FileManager.default.fileExists(atPath: path) {
                 try FileManager.default.removeItem(atPath: path)
             }

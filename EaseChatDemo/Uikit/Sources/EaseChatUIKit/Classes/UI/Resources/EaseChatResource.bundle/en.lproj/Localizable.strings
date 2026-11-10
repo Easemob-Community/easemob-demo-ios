@@ -262,3 +262,8 @@
 "group_receipt_no_read_members" = "No members have read this message";
 "group_receipt_no_unread_members" = "No unread members to display";
 "group_receipt_partial_roster" = "Only current group members are shown. Historical membership may be incomplete.";
+"[Composite message]" = "[Composite message]";
+"[Custom message]" = "[Custom message]";
+"Unable to open attachment" = "Unable to open attachment";
+"Unable to forward composite message" = "Unable to forward this composite message";
+"Failed to forward message" = "Failed to forward message";

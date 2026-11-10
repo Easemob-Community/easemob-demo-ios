@@ -549,7 +549,7 @@ extension MessageListController: MessageListDriverEventsListener {
      */
     @objc open func filterMessageActions(message: MessageEntity) -> [ActionSheetItemProtocol] {
         var messageActions = Appearance.chat.messageLongPressedActions
-        if message.message.body.type != .text {
+        if message.message.contentType != .text {
             messageActions.removeAll { $0.tag == "Copy" }
             messageActions.removeAll { $0.tag == "Edit" }
             messageActions.removeAll { $0.tag == "Translate" }
@@ -588,7 +588,7 @@ extension MessageListController: MessageListDriverEventsListener {
         if !canRecallGroupMessages, message.message.direction != .send {
             messageActions.removeAll { $0.tag == "Recall" }
         }
-        if message.message.body.type != .voice {
+        if message.message.contentType != .voice {
             messageActions.removeAll { $0.tag == "Stt" }
             messageActions.removeAll { $0.tag == "CollapseStt" }
         } else {

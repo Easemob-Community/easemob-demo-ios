@@ -127,6 +127,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func setupEaseChatUIKitConfig() {
+        ComponentViewsActionHooker.shared.chat.compositeImageClicked = { message, bodyIndex, thumbnail in
+            guard let presenter = UIViewController.currentController else { return false }
+            let controller = ImageDetailViewController(message: message, thumbnail: thumbnail, bodyIndex: bodyIndex)
+            presenter.present(controller, animated: true)
+            return true
+        }
         //Set the theme of the chat demo UI.
         if self.theme == 0 {
             Appearance.avatarRadius = .extraSmall

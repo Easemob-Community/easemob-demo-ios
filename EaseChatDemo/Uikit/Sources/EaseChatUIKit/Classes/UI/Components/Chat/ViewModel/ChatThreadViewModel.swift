@@ -479,8 +479,8 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
         let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(self.to)
         if !entity.message.isPeerRead,entity.message.direction == .receive,entity.message.isNeedReadReceipt  {
             if conversation?.type ?? .chat == .chat {
-                switch entity.message.body.type {
-                case .text,.location,.custom,.image:
+                switch entity.message.contentType {
+                case .text,.location,.custom,.image,.multiBody:
                     ChatClient.shared().chatManager?.sendMessageReadReceipts([entity.message]) { error in
                         if error != nil {
                             consoleLogInfo("sendMessageReadReceipts error:\(error?.errorDescription ?? "")", type: .error)
@@ -708,9 +708,7 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
             extensionInfo["em_at_list"] = mentionIds
         }
         if let replyId = self.driver?.replyMessageId,let message = ChatClient.shared().chatManager?.getMessageWithMessageId(replyId) {
-            let msgTypeDict: [ChatMessageBodyType: String] = [ .text: "txt", .image: "img", .video: "video", .voice: "audio", .custom: "custom", .cmd: "cmd", .file: "file", .location: "location", .combine: "combine" ]
-
-            extensionInfo["msgQuote"] = [ "msgID": message.messageId, "msgPreview": message.showContent, "msgSender": message.from, "msgType": msgTypeDict[message.body.type] ?? "" ]
+            extensionInfo["msgQuote"] = message.quoteExtension
         }
         self.sendMessage(text: text, type: .text,extensionInfo: extensionInfo)
     }

@@ -399,7 +399,7 @@ extension ChatThreadViewController: MessageListDriverEventsListener {
      */
     @objc open func filterMessageActions(message: MessageEntity) -> [ActionSheetItemProtocol] {
         var messageActions = Appearance.chat.messageLongPressedActions
-        if message.message.body.type != .text {
+        if message.message.contentType != .text {
             messageActions.removeAll { $0.tag == "Copy" }
             messageActions.removeAll { $0.tag == "Edit" }
             messageActions.removeAll { $0.tag == "Translate" }

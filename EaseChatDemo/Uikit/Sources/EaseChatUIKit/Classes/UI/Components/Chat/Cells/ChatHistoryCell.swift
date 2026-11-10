@@ -36,7 +36,9 @@ import UIKit
     
     @objc public required init(reuseIdentifier: String,message: ChatMessage) {
         super.init(style: .default, reuseIdentifier: reuseIdentifier)
-        switch message.body.type {
+        switch message.contentType {
+        case .multiBody:
+            self.content = CompositeMessageContentView(frame: .zero)
         case .video,.image:
             self.content = ImageView(frame: CGRect(x: self.nickname.frame.minX, y: self.nickname.frame.maxY, width: self.contentView.frame.width-self.avatar.frame.maxX-10-16, height: 20)).cornerRadius(.extraSmall).contentMode(.scaleAspectFit)
         default:
@@ -69,6 +71,12 @@ import UIKit
             self.avatar.image(with: "", placeHolder: Appearance.conversation.singlePlaceHolder)
         }
         self.messageDate.text = entity.message.showDetailDate
+        if let segments = self.content as? CompositeMessageContentView {
+            segments.frame = CGRect(origin: CGPoint(x: self.nickname.frame.minX, y: self.nickname.frame.maxY),
+                                    size: entity.bubbleSize)
+            segments.bind(entity.message, history: true)
+            return
+        }
         switch entity.message.body.type {
         case .video,.image:
             self.content.frame = CGRect(x: self.nickname.frame.minX, y: self.nickname.frame.maxY, width: entity.bubbleSize.width, height: entity.bubbleSize.height)
@@ -130,6 +138,7 @@ extension ChatHistoryCell: ThemeSwitchProtocol {
         if self.content is ImageView {
             self.content.backgroundColor(style == .dark ? UIColor.theme.neutralColor2:UIColor.theme.neutralColor9)
         }
+        (self.content as? CompositeMessageContentView)?.updateColors(history: true)
     }
     
     
