@@ -212,16 +212,10 @@ public let MessageInputBarHeight = CGFloat(52)
         didSet {
             guard self.frame.size != oldValue.size else { return }
             let inputWasActive = self.inputBar.isInputActive
-            self.oldFrame = self.frame
             let inputFrame = CGRect(x: 0, y: self.frame.height-MessageInputBarHeight-BottomBarHeight, width: self.frame.width, height: MessageInputBarHeight)
             self.inputBar.updateContainerFrame(newFrame: inputFrame, preserveInputState: inputWasActive)
-            if inputWasActive {
-                self.inputBar.textViewFirstResponder?(true)
-            } else {
-                self.messageList.frame = CGRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height-BottomBarHeight-MessageInputBarHeight)
-            }
             self.editBottomBar.frame = CGRect(x: 0, y: self.frame.height-MessageInputBarHeight-BottomBarHeight, width: self.frame.width, height: 52)
-            self.replyBar.frame = CGRect(x: 0, y: self.inputBar.frame.minY-MessageInputBarHeight, width: self.frame.width, height: 53)
+            self.updateMessageViewport()
         }
     }
     
@@ -247,7 +241,8 @@ public let MessageInputBarHeight = CGFloat(52)
         UITableView(frame: CGRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height-BottomBarHeight-MessageInputBarHeight), style: .plain).delegate(self).dataSource(self).tableFooterView(UIView()).separatorStyle(.none).backgroundColor(.clear).tag(111)
     }()
     
-    private var oldFrame = CGRect.zero
+    private var isScrollingToLatest = false
+    private var needsInitialScrollToLatest = false
         
     public private(set) lazy var inputBar: MessageInputBar = {
         MessageInputBar(frame: CGRect(x: 0, y: self.frame.height-MessageInputBarHeight-BottomBarHeight, width: self.frame.width, height: MessageInputBarHeight), text: "", placeHolder: Appearance.chat.inputPlaceHolder)
@@ -307,9 +302,10 @@ public let MessageInputBarHeight = CGFloat(52)
     @objc required public init(frame: CGRect,mention: Bool,showType: MessageListType = .normal) {
         super.init(frame: frame)
         self.CellTypes.append(contentsOf: ComponentsRegister.shared.customCellClasses)
-        self.oldFrame = frame
         self.canMention = mention
         self.showType = showType
+        self.messageList.estimatedRowHeight = 0
+        self.messageList.contentInsetAdjustmentBehavior = .never
         self.messageList.keyboardDismissMode = .onDrag
         self.messageList.allowsSelection = false
         if Appearance.chat.contentStyle.contains(.withReply) {
@@ -343,9 +339,8 @@ public let MessageInputBarHeight = CGFloat(52)
         self.moreMessages.layer.shadowOffset = CGSize(width: 2, height: 4)
         self.moreMessages.layer.cornerRadius = Appearance.avatarRadius == .large ? self.moreMessages.frame.height/2.0:CGFloat(Appearance.avatarRadius.rawValue)
         
-        self.processInputBarAxisYChanged()
-        
-        self.processInputBarFirstResponder()
+        self.inputBar.axisYChanged = { [weak self] _ in self?.updateMessageViewport() }
+        self.inputBar.textViewFirstResponder = { [weak self] _ in self?.updateMessageViewport() }
         
         self.editBottomBar.operationClosure = { [weak self] in
             self?.bottomMultiSelectedBarEvents(operation: $0)
@@ -360,12 +355,21 @@ public let MessageInputBarHeight = CGFloat(52)
                     self?.replyBar.isHidden = true
                     self?.messages.removeAll()
                     self?.messageList.reloadData()
+                    self?.updateMessageViewport()
                 }
             }
         }
         
         NotificationCenter.default.addObserver(forName: Notification.Name(rawValue: profile_update_notification), object: nil, queue: .main) {  [weak self] notification in
             self?.messageList.reloadData()
+        }
+    }
+
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        if self.needsInitialScrollToLatest, self.window != nil, self.messageList.bounds.height > 0 {
+            self.needsInitialScrollToLatest = false
+            self.scrollToLatest(animated: false)
         }
     }
     
@@ -379,45 +383,16 @@ public let MessageInputBarHeight = CGFloat(52)
         return .zero
     }
     
-    private func processInputBarAxisYChanged() {
-        self.inputBar.axisYChanged = { [weak self] value in
-            guard let `self` = self else { return }
-            DispatchQueue.main.async {
-                UIView.animate(withDuration: 0.25) {
-                    self.replyBar.frame = CGRect(x: 0, y: self.inputBar.frame.minY-MessageInputBarHeight, width: self.frame.width, height: 53)
-                    if self.replyBar.isHidden  {
-                        self.moreMessages.frame = CGRect(x: self.moreMessageAxisX, y: self.inputBar.frame.minY-44, width: 180, height: 36)
-                    } else {
-                        self.moreMessages.frame = CGRect(x: self.moreMessageAxisX, y: self.replyBar.frame.minY-44, width: 180, height: 36)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func processInputBarFirstResponder() {
-        self.inputBar.textViewFirstResponder = { [weak self] firstResponder in
-            guard let `self` = self else { return }
-            UIView.animate(withDuration: 0.25) {
-                let oldFrame = CGRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height-BottomBarHeight-MessageInputBarHeight)
-                self.messageList.frame = oldFrame
-                let space = -((ScreenHeight <= CGFloat(667) ? CGFloat(28):CGFloat(0))-(self.inputBar.extensionMenus.isHidden ? 0:(self.inputBar.extensionMenus.frame.height <= CGFloat(132) ? CGFloat(20):CGFloat(-60))))
-                if firstResponder {
-                    self.messageList.frame = CGRect(x: 0, y: 0, width: self.messageList.frame.width, height: self.frame.height-self.inputBar.keyboardHeight-16-BottomBarHeight-CGFloat(space))
-                
-                } else {
-                    if self.inputBar.frame.height > MessageInputBarHeight {
-                        self.messageList.frame = CGRect(x: 0, y: 0, width: self.messageList.frame.width, height: self.frame.height-self.inputBar.frame.height-BottomBarHeight)
-                    } else {
-                        self.messageList.frame = oldFrame
-                    }
-                }
-                
-                let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                if lastIndexPath.row >= 0 {
-                    self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: false)
-                }
-            }
+    private func updateMessageViewport() {
+        self.replyBar.frame = CGRect(x: 0, y: self.inputBar.frame.minY - MessageInputBarHeight, width: self.bounds.width, height: 53)
+        let bottom = self.replyBar.isHidden ? self.inputBar.frame.minY : self.replyBar.frame.minY
+        self.moreMessages.frame = CGRect(x: self.moreMessageAxisX, y: bottom - 44, width: 180, height: 36)
+        let viewport = CGRect(x: 0, y: 0, width: self.bounds.width, height: max(0, bottom))
+        guard self.messageList.frame != viewport else { return }
+        let followLatest = self.showType != .history && (self.isScrollingToLatest || self.scrolledBottom)
+        self.messageList.frame = viewport
+        if followLatest {
+            self.scrollToLatest(animated: false)
         }
     }
     
@@ -443,6 +418,7 @@ public let MessageInputBarHeight = CGFloat(52)
             self.replyId = ""
             self.replyBar.isHidden = true
             self.inputBar.hiddenInput()
+            self.updateMessageViewport()
         default:
             break
         }
@@ -468,40 +444,44 @@ public let MessageInputBarHeight = CGFloat(52)
             return
         }
         self.inputBar.hiddenInput()
-        if self.moreMessagesCount > 0 {
-            self.moreMessagesCount = 0
-            for handler in self.eventHandlers.allObjects {
-                handler.onMoreMessagesClicked()
-            }
-        }
-        if self.messages.count  > 1 {
-            self.messageList.reloadData()
-            let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-            if lastIndexPath.row >= 0 {
-                self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
-            }
+        self.clearNewMessages()
+        self.scrollToLatest(animated: true)
+    }
+
+    private func clearNewMessages() {
+        guard self.moreMessagesCount > 0 else { return }
+        self.moreMessagesCount = 0
+        for handler in self.eventHandlers.allObjects {
+            handler.onMoreMessagesClicked()
         }
     }
-    
-    public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        if let lastIndexPath = self.messageList.indexPathsForVisibleRows?.last, lastIndexPath.row == self.messages.count - 1,self.moreMessagesCount > 0 {
-            self.moreMessagesCount = 0
-            for handler in self.eventHandlers.allObjects {
-                handler.onMoreMessagesClicked()
-            }
+
+    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if self.scrolledBottom {
+            self.clearNewMessages()
         }
+    }
+
+    public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        self.isScrollingToLatest = false
+    }
+
+    public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         if self.inputBar.collapsedState == false {
             self.inputBar.hiddenInput()
         }
     }
     
     public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        self.isScrollingToLatest = false
+        self.needsInitialScrollToLatest = false
         if self.inputBar.collapsedState == false {
             self.inputBar.hiddenInput()
         }
     }
     
     public func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {
+        self.isScrollingToLatest = false
         if self.inputBar.collapsedState == false {
             self.inputBar.hiddenInput()
         }
@@ -559,9 +539,13 @@ extension MessageListView: UITableViewDelegate,UITableViewDataSource {
     
     @objc open func refreshPreviewResult(entity: MessageEntity) {
         if let idx = self.messages.firstIndex(where: { $0.message.messageId == entity.message.messageId }) {
+            let followLatest = self.showType != .history && (self.isScrollingToLatest || self.scrolledBottom)
             self.messageList.beginUpdates()
-            self.messageList.reloadRows(at: [IndexPath(row: idx, section: 0)], with: .automatic)
+            self.messageList.reloadRows(at: [IndexPath(row: idx, section: 0)], with: followLatest ? .none : .automatic)
             self.messageList.endUpdates()
+            if followLatest {
+                self.scrollToLatest(animated: false)
+            }
         }
     }
     
@@ -799,6 +783,7 @@ extension MessageListView: IMessageListViewDriver {
             return
         }
         if let highlightIndex = self.messages.firstIndex(where: { $0.message.messageId == message.messageId }) {
+            self.isScrollingToLatest = false
             self.messageList.scrollToRow(at: IndexPath(row: highlightIndex, section: 0), at: .middle, animated: true)
             if let cell = self.messageList.cellForRow(at: IndexPath(row: highlightIndex, section: 0)) {
                 UIView.animate(withDuration: 1, delay: 0.5) {
@@ -841,13 +826,22 @@ extension MessageListView: IMessageListViewDriver {
     
     
     public var scrolledBottom: Bool {
-        let contentHeight = self.messageList.contentSize.height
-        let tableViewHeight = self.messageList.bounds.size.height
-        let yOffset = self.messageList.contentOffset.y
-        return Int(ceilf(Float(yOffset))) >= Int(ceilf(Float(contentHeight - tableViewHeight)))
+        self.messageList.contentOffset.y >= self.latestContentOffsetY - 1
     }
-    
-    
+
+    private var latestContentOffsetY: CGFloat {
+        let inset = self.messageList.adjustedContentInset
+        return max(-inset.top, self.messageList.contentSize.height + inset.bottom - self.messageList.bounds.height)
+    }
+
+    private func scrollToLatest(animated: Bool) {
+        guard !self.messages.isEmpty, self.messageList.bounds.height > 0 else { return }
+        self.messageList.layoutIfNeeded()
+        let offset = CGPoint(x: self.messageList.contentOffset.x, y: self.latestContentOffsetY)
+        self.isScrollingToLatest = animated && self.messageList.contentOffset != offset
+        self.messageList.setContentOffset(offset, animated: self.isScrollingToLatest)
+    }
+
     public var dataSource: [ChatMessage] {
         self.messages.filter({ !$0.isTimeDivider }).map { $0.message }
     }
@@ -892,6 +886,7 @@ extension MessageListView: IMessageListViewDriver {
     
     public func reloadCallMessage(message: ChatMessage) {
         if let index = self.messages.firstIndex(where: { $0.message.messageId == message.messageId }) {
+            self.isScrollingToLatest = false
             self.messages.replaceSubrange(index...index, with: [self.convertMessage(message: message)])
             self.messageList.reloadRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
             self.messageList.scrollToRow(at: IndexPath(row: index, section: 0), at: .bottom, animated: true)
@@ -973,6 +968,7 @@ extension MessageListView: IMessageListViewDriver {
             self.messages.append(contentsOf: self.convertMessages(messages: messages, previousTimestamp: self.lastRealMessageTimestamp))
             self.messageList.reloadData()
         } else {
+            self.isScrollingToLatest = false
             let pullBeforeMessageId = self.firstRealMessageId
             var entities = self.convertMessages(messages: messages, previousTimestamp: 0)
             // The divider in front of the current top message can be redundant now that older messages are above it.
@@ -1013,26 +1009,16 @@ extension MessageListView: IMessageListViewDriver {
     }
 
     public func refreshMessages(messages: [ChatMessage]) {
+        self.isScrollingToLatest = false
         self.messageList.refreshControl?.endRefreshing()
         self.messages = self.convertMessages(messages: messages.filter({ !$0.isTimeDividerMessage }), previousTimestamp: 0)
         self.messageList.reloadData()
-        if self.showType == .thread {
-            if !self.threadMessagesLoadFinished {
-                return
-            }
-        }
-        if self.messages.count > 1 {
-            if self.showType == .history {
-                let firstIndexPath = IndexPath(row: 0, section: 0)
-                self.messageList.scrollToRow(at: firstIndexPath, at: .top, animated: true)
-            } else {
-                if self.showType == .normal {
-                    let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                    if lastIndexPath.row >= 0 {
-                        self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: false)
-                    }
-                }
-            }
+        if self.showType == .history, self.messages.count > 1 {
+            self.messageList.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: true)
+        } else if self.showType == .normal {
+            self.needsInitialScrollToLatest = !self.messages.isEmpty && (self.window == nil || self.messageList.bounds.height == 0)
+            if self.needsInitialScrollToLatest { self.setNeedsLayout() }
+            self.scrollToLatest(animated: false)
         }
     }
     
@@ -1090,6 +1076,7 @@ extension MessageListView: IMessageListViewDriver {
         self.inputBar.inputField.attributedText = result
         self.inputBar.inputField.typingAttributes = typingAttributes
         self.inputBar.inputField.selectedRange = NSRange(location: result.length, length: 0)
+        self.inputBar.updateHeight()
         self.inputBar.inputField.becomeFirstResponder()
     }
     
@@ -1199,54 +1186,36 @@ extension MessageListView: IMessageListViewDriver {
                 return
             }
         }
-        if message.direction == .send {
+        let outgoing = message.direction == .send
+        let followLatest = outgoing || self.messages.isEmpty || self.needsInitialScrollToLatest || self.isScrollingToLatest || self.scrolledBottom
+        if outgoing {
             self.replyId = ""
-        }
-        if message.direction == .send {
             self.replyBar.isHidden = true
+            self.updateMessageViewport()
         }
         self.messageList.refreshControl?.endRefreshing()
         if !message.isTimeDividerMessage,self.shouldInsertTimeDivider(timestamp: message.timestamp, previousTimestamp: self.lastRealMessageTimestamp) {
             self.messages.append(self.timeDividerEntity(timestamp: message.timestamp))
         }
         self.messages.append(self.convertMessage(message: message))
-        let scrolledBottom = self.scrolledBottom
         self.messageList.reloadData()
-        if self.messages.count > 1 {
-            if message.direction == .send {
-                let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                if lastIndexPath.row > 0 {
-                    self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
-                }
-                if self.moreMessagesCount > 0 {
-                    self.moreMessagesCount = 0
-                    for handler in self.eventHandlers.allObjects {
-                        handler.onMoreMessagesClicked()
-                    }
-                }
-            } else {
-                if scrolledBottom {
-                    let lastIndexPath = IndexPath(row: self.messages.count - 1, section: 0)
-                    if lastIndexPath.row > 0 {
-                        self.messageList.scrollToRow(at: lastIndexPath, at: .bottom, animated: true)
-                    }
-                } else {
-                    self.moreMessagesCount += 1
-                    self.moreMessages.setTitle("\(self.moreMessagesCount) "+"new messages".chat.localize, for: .normal)
-                }
-            }
-            
+        if followLatest {
+            self.clearNewMessages()
+            self.scrollToLatest(animated: outgoing)
+        } else {
+            self.moreMessagesCount += 1
+            self.moreMessages.setTitle("\(self.moreMessagesCount) "+"new messages".chat.localize, for: .normal)
         }
     }
     
     @objc open func scrollToBottom() {
-        let bottomOffset = CGPoint(x: 0, y: self.messageList.contentSize.height - self.messageList.bounds.size.height + self.messageList.contentInset.bottom + MessageInputBarHeight)
-        self.messageList.setContentOffset(bottomOffset, animated: true)
+        self.scrollToLatest(animated: true)
     }
     
     public func processMessage(operation: MessageOperation,message: ChatMessage) {
         self.inputBar.hiddenInput()
         self.replyBar.isHidden = true
+        self.updateMessageViewport()
         if message.direction == .send {
             self.replyId = ""
         }
@@ -1345,6 +1314,7 @@ extension MessageListView: IMessageListViewDriver {
     
     private func replyAction(_ message: ChatMessage) {
         self.replyBar.isHidden = false
+        self.updateMessageViewport()
         self.replyBar.refresh(message: message)
         self.replyId = message.messageId
         self.inputBar.show()

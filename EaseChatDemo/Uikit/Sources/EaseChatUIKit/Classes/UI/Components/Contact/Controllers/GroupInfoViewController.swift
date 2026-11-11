@@ -17,6 +17,7 @@ import UIKit
     private var groupAlias = ""
     private var memberPreviewGeneration = 0
     private var pendingSwitches = Set<String>()
+    private var isReturningFromDisbandedGroup = false
     private let account = saveIdentifier
 
     private var isOwner: Bool { self.chatGroup.owner == ChatUIKitContext.shared?.currentUserId }
@@ -92,7 +93,7 @@ import UIKit
         }
         var switches = [row("contact_details_switch_donotdisturb", toggle: self.isConversationMuted),
                         row("group_details_pin", toggle: ChatClient.shared().chatManager?.getConversationWithConvId(self.chatGroup.groupId)?.isPinned ?? false)]
-        if self.isOwner, !self.chatGroup.settings.isPublic, !self.chatGroup.isDisabled {
+        if self.isOwner, !self.chatGroup.isPublic, !self.chatGroup.isDisabled {
             switches.append(row("group_details_allow_invites", toggle: self.chatGroup.settings.allowInvites))
         }
         return [information, [row("group_details_search_history")], switches, [row("contact_details_button_clearchathistory")]]
@@ -152,7 +153,12 @@ import UIKit
     @objc open func fetchGroupInfo(groupId: String) {
         self.service.fetchGroupInfo(groupId: groupId) { [weak self] group, error in
             DispatchQueue.main.async {
-                guard let self = self, self.account == saveIdentifier else { return }
+                guard let self, self.account == saveIdentifier, self.chatGroup.groupId == groupId,
+                      !self.isReturningFromDisbandedGroup else { return }
+                if group == nil, error == nil || error?.code == .groupNotExist {
+                    self.returnFromDisbandedGroup(groupId: groupId)
+                    return
+                }
                 if let group = group, error == nil {
                     self.chatGroup = group
                     ChatUIKitContext.shared?.notifyProfilesChanged()
@@ -164,7 +170,8 @@ import UIKit
         }
         self.service.getAnnouncement(groupId: groupId) { [weak self] text, error in
             DispatchQueue.main.async {
-                guard let self = self, self.account == saveIdentifier, error == nil else { return }
+                guard let self, self.account == saveIdentifier, self.chatGroup.groupId == groupId,
+                      error == nil, !self.isReturningFromDisbandedGroup else { return }
                 self.groupAnnouncement = text ?? ""
                 self.datas = self.fillDatas()
                 self.menuList.reloadData()
@@ -172,9 +179,31 @@ import UIKit
         }
         self.service.fetchMemberAttribute(groupId: groupId, userId: ChatUIKitContext.shared?.currentUserId ?? "") { [weak self] error, attributes in
             DispatchQueue.main.async {
-                guard let self = self, self.account == saveIdentifier, error == nil else { return }
+                guard let self, self.account == saveIdentifier, self.chatGroup.groupId == groupId,
+                      error == nil, !self.isReturningFromDisbandedGroup else { return }
                 self.fillAlias(nickname: attributes?["nickName"] ?? "")
             }
+        }
+    }
+
+    private var canReturnFromGroupDetails: Bool {
+        guard self.viewIfLoaded?.window != nil, self.presentedViewController == nil,
+              !self.isMovingFromParent, !self.isBeingDismissed else { return false }
+        if let navigationController = self.navigationController {
+            return navigationController.topViewController === self
+        }
+        return self.presentingViewController != nil
+    }
+
+    private func returnFromDisbandedGroup(groupId: String) {
+        guard self.canReturnFromGroupDetails else { return }
+        self.isReturningFromDisbandedGroup = true
+        self.showToast(toast: "Group disbanded".chat.localize)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self else { return }
+            self.isReturningFromDisbandedGroup = false
+            guard self.account == saveIdentifier, self.chatGroup.groupId == groupId, self.canReturnFromGroupDetails else { return }
+            self.pop()
         }
     }
 
@@ -492,7 +521,11 @@ import UIKit
 
     private func updateMemberPreview(profiles: [ChatUserProfileProtocol]) {
         guard let header = self.header as? GroupDetailsMembersHeader else { return }
-        let canInvite = !self.chatGroup.isDisabled && (self.isManager || (!self.chatGroup.settings.isPublic && self.chatGroup.settings.allowInvites))
+        var allowInvites = false
+        if let settings = self.chatGroup.settings {
+            allowInvites = settings.allowInvites
+        }
+        let canInvite = !self.chatGroup.isDisabled && (self.isManager || (!self.chatGroup.isPublic && allowInvites))
         header.configure(profiles: profiles, canInvite: canInvite, canRemove: self.isManager && !self.chatGroup.isDisabled)
         header.frame.size.height = header.contentHeight
         self.menuList.tableHeaderView = header
@@ -506,7 +539,11 @@ import UIKit
 
     private func changeMembers(removing: Bool) {
         guard !self.chatGroup.isDisabled else { return }
-        guard removing ? self.isManager : (self.isManager || (!self.chatGroup.settings.isPublic && self.chatGroup.settings.allowInvites)) else { return }
+        var allowInvites = false
+        if let settings = self.chatGroup.settings {
+            allowInvites = settings.allowInvites
+        }
+        guard removing ? self.isManager : (self.isManager || (!self.chatGroup.isPublic && allowInvites)) else { return }
         GroupInfoProfileLoader.memberIds(groupId: self.chatGroup.groupId, service: self.service) { [weak self] ids, error in
             guard let self = self, self.account == saveIdentifier else { return }
             if let error = error { self.showToast(toast: error.errorDescription ?? ""); return }

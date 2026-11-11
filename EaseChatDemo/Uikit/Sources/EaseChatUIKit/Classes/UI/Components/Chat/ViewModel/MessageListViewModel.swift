@@ -155,12 +155,20 @@ import UIKit
         self.chatService = ChatServiceImplement(to: conversationId)
         self.chatType = type
         super.init()
+        if type == .chat {
+            NotificationCenter.default.addObserver(self, selector: #selector(friendChatDidChange(_:)), name: ContactServiceImplement.newFriendChat, object: nil)
+        }
         self.chatService?.bindChatEventsListener(listener: self)
         self.groupService?.bindGroupEventsListener(listener: self)
         self.multiService?.bindMultiDeviceListener(listener: self)
         if Appearance.chat.contentStyle.contains(.withMessageThread) {
             self.groupService?.bindGroupChatThreadEventListener(listener: self)
         }
+    }
+
+    @objc private func friendChatDidChange(_ notification: Notification) {
+        guard let message = notification.object as? ChatMessage, message.conversationId == self.to else { return }
+        self.messageDidReceived(message: message)
     }
 
     /// Bind ``IMessageListViewDriver``
@@ -559,6 +567,7 @@ import UIKit
                 self.driver?.processMessage(operation: .delete, message: message)
             }
             self.pinDriver?.refresh(entities: self.showPinnedMessages())
+            ConversationServiceImplement.notifyLocalChange(account: account)
         }
     }
 
@@ -569,8 +578,10 @@ import UIKit
                 self.chatService?.removeLocalMessage(messageId: message.messageId)
                 self.driver?.processMessage(operation: .delete, message: message)
             } else {
+                let account = saveIdentifier
                 ChatClient.shared().chatManager?.getConversationWithConvId(self.to)?.removeMessages(fromServerMessageIds: [message.messageId], completion: { [weak self] error in
                     if error == nil {
+                        ConversationServiceImplement.notifyLocalChange(account: account)
                         self?.driver?.processMessage(operation: .delete, message: message)
                     } else {
                         consoleLogInfo("delete message error:\(error?.errorDescription ?? "")", type: .error)
@@ -593,8 +604,10 @@ import UIKit
         } else {
             if var dataSource = self.driver?.dataSource {
                 let deleteIds = messages.map { $0.messageId }
+                let account = saveIdentifier
                 ChatClient.shared().chatManager?.getConversationWithConvId(self.to)?.removeMessages(fromServerMessageIds: deleteIds, completion: { [weak self] error in
                     if error == nil {
+                        ConversationServiceImplement.notifyLocalChange(account: account)
                         for message in messages {
                             dataSource.removeAll(where: { $0.messageId == message.messageId })
                         }
@@ -729,6 +742,7 @@ extension MessageListViewModel: MessageListViewActionEventsDelegate {
     }
     
     @objc open func retrySendMessage(entity: MessageEntity) {
+        MessageInputEmojiView.repairBundledGifPathForRetry(in: entity.message)
         self.driver?.updateMessageStatus(message: entity.message, status: .sending)
         self.chatService?.send(message: entity.message, completion: { error, message in
             if error == nil {

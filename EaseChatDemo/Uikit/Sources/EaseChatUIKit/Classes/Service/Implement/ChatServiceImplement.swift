@@ -77,12 +77,16 @@ extension ChatServiceImplement: ChatService {
     }
     
     public func edit(messageId: String, text: String, completion: @escaping (ChatError?, ChatMessage?) -> Void) {
+        let account = saveIdentifier
         let rawMessage = ChatClient.shared().chatManager?.getMessageWithMessageId(messageId)
         let body = ChatTextMessageBody(text: text)
         if let rawBody = rawMessage?.body as? ChatTextMessageBody {
             body.targetLanguages = rawBody.targetLanguages
         }
         ChatClient.shared().chatManager?.modifyMessage(messageId, body: body, ext: nil, completion: { error, message in
+            if error == nil {
+                ConversationServiceImplement.notifyLocalChange(account: account)
+            }
             completion(error,message)
         })
     }
@@ -142,19 +146,23 @@ extension ChatServiceImplement: ChatService {
         }
     }
     
-    private func pushSendNotification(message: ChatMessage?) {
-        if let conversationId = message?.conversationId {
-            NotificationCenter.default.post(name: Notification.Name("EaseChatUIKit_Conversation_last_message_need_update"), object: conversationId)
+    public func removeLocalMessage(messageId: String) {
+        guard let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(self.to) else { return }
+        let wasLatest = conversation.latestMessage?.messageId == messageId
+        var error: ChatError?
+        conversation.deleteMessage(withId: messageId, error: &error)
+        if wasLatest, error == nil {
+            ConversationServiceImplement.notifyLocalChange()
         }
     }
     
-    public func removeLocalMessage(messageId: String) {
-        ChatClient.shared().chatManager?.getConversationWithConvId(self.to)?.deleteMessage(withId: messageId, error: nil)
-        
-    }
-    
     public func removeHistoryMessages() {
-        ChatClient.shared().chatManager?.getConversationWithConvId(self.to)?.deleteAllMessages(nil)
+        guard let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(self.to) else { return }
+        var error: ChatError?
+        conversation.deleteAllMessages(&error)
+        if error == nil {
+            ConversationServiceImplement.notifyLocalChange()
+        }
     }
     
     public func markMessageAsRead(messageId: String) {

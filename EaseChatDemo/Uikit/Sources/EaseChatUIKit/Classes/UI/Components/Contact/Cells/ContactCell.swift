@@ -28,7 +28,9 @@ import UIKit
     }()
     
     @objc open func createNickName() -> UILabel {
-        UILabel(frame: CGRect(x: self.avatar.frame.maxX+12, y: self.avatar.frame.minX+4, width: self.contentView.frame.width-self.avatar.frame.maxX-12-30, height: 16)).font(UIFont.theme.titleMedium).backgroundColor(.clear).textColor(UIColor.theme.neutralColor1)
+        let font = UIFont.theme.titleMedium
+        let height = ceil(font.lineHeight)
+        return UILabel(frame: CGRect(x: self.avatar.frame.maxX+12, y: self.avatar.frame.midY-height/2, width: self.contentView.frame.width-self.avatar.frame.maxX-12-30, height: height)).font(font).backgroundColor(.clear).textColor(UIColor.theme.neutralColor1)
     }
     
     public private(set) lazy var separatorLine: UIView = {
@@ -70,6 +72,7 @@ import UIKit
         }
         self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
         self.nickName.text = showName
+        self.setNeedsLayout()
         if self.display == .withCheckBox {
             self.checkbox.image = UIImage(chatNamed: profile.selected ? "select":"unselect")
         }
@@ -89,6 +92,7 @@ import UIKit
             avatarURL = ChatUIKitContext.shared?.userProfile(id: profile.id)?.avatarURL ?? ""
         }
         self.nickName.attributedText = self.highlightKeywords(keyword: keyword, in: showName)
+        self.setNeedsLayout()
         self.avatar.image(with: avatarURL, placeHolder: Appearance.conversation.singlePlaceHolder)
         if self.display == .withCheckBox {
             self.checkbox.image = UIImage(chatNamed: profile.selected ? "select":"unselect")
@@ -115,7 +119,11 @@ import UIKit
         super.layoutSubviews()
         self.checkbox.frame = CGRect(x: 16, y: (self.contentView.frame.height-28)/2.0, width: 28, height: 28)
         self.avatar.frame = CGRect(x: self.display == .normal ? 16:self.checkbox.frame.maxX+12, y: (self.contentView.frame.height-40)/2.0, width: 40, height: 40)
-        self.nickName.frame = CGRect(x: self.avatar.frame.maxX+12, y: (self.contentView.frame.height-16)/2.0, width: self.contentView.frame.width-self.avatar.frame.maxX-12-30, height: 16)
+        let nameX = self.avatar.frame.maxX + 12
+        let nameWidth = max(0, self.contentView.bounds.width - nameX - 30)
+        let fittingSize = self.nickName.sizeThatFits(CGSize(width: nameWidth, height: .greatestFiniteMagnitude))
+        let nameHeight = min(self.contentView.bounds.height, ceil(max(self.nickName.font.lineHeight, fittingSize.height)))
+        self.nickName.frame = CGRect(x: nameX, y: self.contentView.bounds.midY - nameHeight / 2, width: nameWidth, height: nameHeight)
         self.separatorLine.frame = CGRect(x: self.nickName.frame.minX, y: self.contentView.frame.height-0.5, width: self.contentView.frame.width-self.nickName.frame.minX, height: 0.5)
     }
     

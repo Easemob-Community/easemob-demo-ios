@@ -60,7 +60,11 @@ extension ContactServiceImplement: ContactServiceProtocol {
     }
     
     public func removeContact(userId: String, removeChannel: Bool = false, completion: @escaping (ChatError?, String) -> Void) {
+        let account = saveIdentifier
         ChatClient.shared().contactManager?.deleteContact(userId, isDeleteConversation: removeChannel, completion: { [weak self] userId, error in
+            if error == nil, !removeChannel {
+                ConversationServiceImplement.notifyLocalChange(account: account)
+            }
             completion(error,userId ?? "")
             self?.handleResult(error: error, type: .remove, operatorId: ChatUIKitContext.shared?.currentUserId ?? "")
         })
@@ -69,11 +73,14 @@ extension ContactServiceImplement: ContactServiceProtocol {
     public func agreeFriendRequest(from userId: String, completion: @escaping (ChatError?, String) -> Void) {
         let store = FriendRequestStore()
         ChatClient.shared().contactManager?.approveFriendRequest(fromUser: userId, completion: { [weak self] _, error in
-            if error == nil {
-                store.updateStatus(.accepted, userId: userId)
+            DispatchQueue.main.async {
+                if error == nil, store.ownerIdentifier == saveIdentifier {
+                    store.updateStatus(.accepted, userId: userId)
+                    Self.openFriendConversation(userId: userId)
+                }
+                completion(error,userId)
+                self?.handleResult(error: error, type: .agree, operatorId: ChatUIKitContext.shared?.currentUserId ?? "")
             }
-            completion(error,userId)
-            self?.handleResult(error: error, type: .agree, operatorId: ChatUIKitContext.shared?.currentUserId ?? "")
         })
     }
     
@@ -134,18 +141,35 @@ extension ContactServiceImplement: ContactEventsListener {
         for listener in self.responseDelegates.allObjects {
             listener.friendshipDidRemove(by: aUsername)
         }
+        if ChatClient.shared().chatManager?.getConversationWithConvId(aUsername) != nil {
+            ConversationServiceImplement.notifyLocalChange()
+        }
         self.handleResult(error: nil, type: .remove, operatorId: aUsername)
     }
     
     public func friendRequestDidApprove(byUser aUsername: String) {
-        let conversation = ChatClient.shared().chatManager?.getConversation(aUsername, type: .chat, createIfNotExist: true)
-        let ext = ["something":("You have added".chat.localize+" "+aUsername+" "+"to say hello".chat.localize)]
-        let message = ChatMessage(conversationID: aUsername, body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: ext)
-        conversation?.insert(message, error: nil)
+        Self.openFriendConversation(userId: aUsername)
         for listener in self.responseDelegates.allObjects {
             listener.friendRequestDidAgree(by: aUsername)
         }
         self.handleResult(error: nil, type: .agree, operatorId: aUsername)
+    }
+
+    static let newFriendChat = Notification.Name("New Friend Chat")
+
+    static func openFriendConversation(userId: String, onlyIfEmpty: Bool = false) {
+        guard !userId.isEmpty,
+              let conversation = ChatClient.shared().chatManager?.getConversation(userId, type: .chat, createIfNotExist: true) else { return }
+        if onlyIfEmpty, conversation.latestMessage != nil { return }
+        let text = "You have added".chat.localize + " " + userId + " " + "to say hello".chat.localize
+        let message = ChatMessage(conversationID: userId, body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: ["something": text])
+        message.status = .succeed
+        var error: ChatError?
+        conversation.insert(message, error: &error)
+        if let error {
+            consoleLogInfo("Insert friend welcome message failed: \(error.errorDescription ?? "")", type: .error)
+        }
+        NotificationCenter.default.post(name: Self.newFriendChat, object: error == nil ? message : nil)
     }
     
     public func friendRequestDidDecline(byUser aUsername: String) {

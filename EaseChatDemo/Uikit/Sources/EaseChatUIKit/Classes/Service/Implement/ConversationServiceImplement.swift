@@ -10,8 +10,22 @@ import UIKit
 
 
 @objc public class ConversationServiceImplement: NSObject {
+    private static let localConversationDidChange = Notification.Name("EaseChatUIKit_Conversation_last_message_need_update")
+
+    static func notifyLocalChange(account: String = saveIdentifier) {
+        let post = {
+            guard account == saveIdentifier else { return }
+            NotificationCenter.default.post(name: Self.localConversationDidChange, object: nil)
+        }
+        if Thread.isMainThread {
+            post()
+        } else {
+            DispatchQueue.main.async(execute: post)
+        }
+    }
     
     private var responseDelegates: NSHashTable<ConversationServiceListener> = NSHashTable<ConversationServiceListener>.weakObjects()
+    private var scheduledRefreshAccount: String?
 
     private let groupService: GroupService = ChatUIKitClient.shared.groupService
     
@@ -20,12 +34,18 @@ import UIKit
     public override init() {
         super.init()
         ChatClient.shared().chatManager?.add(self, delegateQueue: .main)
+        ChatClient.shared().chatManager?.addConversation(delegate: self, queue: .main)
+        for name in [Self.localConversationDidChange, Notification.Name("EaseChatUIKit_clean_history_messages")] {
+            NotificationCenter.default.addObserver(self, selector: #selector(receiveLocalNotify), name: name, object: nil)
+        }
         self.groupService.bindGroupEventsListener(listener: self)
     }
     
     deinit {
         self.groupService.unbindGroupEventsListener(listener: self)
         ChatClient.shared().chatManager?.remove(self)
+        ChatClient.shared().chatManager?.removeConversation(delegate: self)
+        NotificationCenter.default.removeObserver(self)
     }
 
 }
@@ -47,9 +67,26 @@ extension ConversationServiceImplement: ConversationService {
     
     
     public func loadExistConversations() {
-        let conversations = ChatClient.shared().chatManager?.getAllConversations(true) ?? []
+        guard let conversations = ChatClient.shared().chatManager?.getAllConversations(true) else { return }
+        let list = self.mapper(objects: conversations)
         for listener in self.responseDelegates.allObjects {
-            listener.onChatConversationListDidChanged(list: self.mapper(objects: conversations))
+            listener.onChatConversationListDidChanged(list: list)
+        }
+    }
+
+    func scheduleListRefresh() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.scheduleListRefresh() }
+            return
+        }
+        let account = saveIdentifier
+        guard self.scheduledRefreshAccount != account else { return }
+        self.scheduledRefreshAccount = account
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.scheduledRefreshAccount == account else { return }
+            self.scheduledRefreshAccount = nil
+            guard account == saveIdentifier else { return }
+            self.loadExistConversations()
         }
     }
     
@@ -111,13 +148,10 @@ extension ConversationServiceImplement: ConversationService {
             return
         }
         self.responseDelegates.add(listener)
-        NotificationCenter.default.addObserver(self, selector: #selector(receiveLocalNotify(notification:)), name: Notification.Name("EaseChatUIKit_Conversation_last_message_need_update"), object: nil)
     }
     
-    @objc private func receiveLocalNotify(notification: Notification) {
-        if let conversationId = notification.object as? String , let message = ChatClient.shared().chatManager?.getConversationWithConvId(conversationId)?.latestMessage {
-            self.notifyHandler(message: message,local: true)
-        }
+    @objc private func receiveLocalNotify() {
+        self.scheduleListRefresh()
     }
     
     public func unbindConversationEventsListener(listener: ConversationServiceListener) {
@@ -194,7 +228,7 @@ extension ConversationServiceImplement: ChatEventsListener {
                 ChatClient.shared().chatManager?.getConversationWithConvId(notice.conversationId)?.deleteMessage(withId: notice.messageId, error: nil)
             }
         }
-        self.loadExistConversations()
+        self.scheduleListRefresh()
     }
     
     public func onMessageContentChanged(_ message: ChatMessage, operatorId: String, operationTime: UInt) {
@@ -226,13 +260,6 @@ extension ConversationServiceImplement: ChatEventsListener {
         }
     }
     
-    public func conversationListDidUpdate(_ aConversationList: [ChatConversation]) {
-        let list = self.mapper(objects: aConversationList)
-        for listener in self.responseDelegates.allObjects {
-            listener.onChatConversationListDidChanged(list: list)
-        }
-    }
-    
     public func onConversationRead(_ from: String, to: String) {
         if from == ChatUIKitContext.shared?.currentUserId ?? "" {
             if let conversation = ChatClient.shared().chatManager?.getConversationWithConvId(to) {
@@ -260,5 +287,11 @@ extension ConversationServiceImplement: ChatEventsListener {
         }
     }
 
+}
+
+extension ConversationServiceImplement: ChatConversationDelegate {
+    @objc public func conversationListDidUpdate(_ aConversationList: [ChatConversation]) {
+        self.scheduleListRefresh()
+    }
 }
 

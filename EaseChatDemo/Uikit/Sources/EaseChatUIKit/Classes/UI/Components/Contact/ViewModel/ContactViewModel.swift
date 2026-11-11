@@ -25,7 +25,7 @@ import UIKit
     public required init(ignoreIds: [String] = []) {
         self.ignoreContacts = ignoreIds
         super.init()
-        NotificationCenter.default.addObserver(self, selector: #selector(addFriendRefreshList), name: Notification.Name("New Friend Chat"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(addFriendRefreshList), name: ContactServiceImplement.newFriendChat, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(loadAllContacts), name: Notification.Name(rawValue: profile_update_notification), object: nil)
     }
     

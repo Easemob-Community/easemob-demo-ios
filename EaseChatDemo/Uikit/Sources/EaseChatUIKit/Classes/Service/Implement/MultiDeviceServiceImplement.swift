@@ -42,6 +42,7 @@ extension MultiDeviceServiceImplement: MultiDeviceEventsListener {
     public func multiDevicesContactEventDidReceive(_ aEvent: MultiDeviceEvent, username aUsername: String, ext aExt: String?) {
         if aEvent == .contactAccept {
             FriendRequestStore().updateStatus(.accepted, userId: aUsername)
+            ContactServiceImplement.openFriendConversation(userId: aUsername, onlyIfEmpty: true)
         } else if aEvent == .contactDecline {
             FriendRequestStore().updateStatus(.declined, userId: aUsername)
         }

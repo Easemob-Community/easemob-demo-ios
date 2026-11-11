@@ -92,20 +92,46 @@ import UIKit
     /// referenced by a message body),and returns the sandbox path.
     /// Returns `path` unchanged when the copy fails.
     public static func sandboxGifPathIfNeeded(for path: String) -> String {
-        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return path }
-        let directory = documents.appendingPathComponent("ChatGifs", isDirectory: true)
-        let fileName = path.components(separatedBy: "/").last ?? "\(Date().timeIntervalSince1970).gif"
+        let manager = FileManager.default
+        let baseDirectory: URL
+        if ProcessInfo.processInfo.isiOSAppOnMac {
+            // The SDK rebases attachments from the last /Library/ component. On Mac,
+            // Documents paths only contain /Library/ before the container itself.
+            baseDirectory = URL(fileURLWithPath: MediaConvertor.filePath(), isDirectory: true)
+        } else {
+            guard let documents = manager.urls(for: .documentDirectory, in: .userDomainMask).first else { return path }
+            baseDirectory = documents
+        }
+        let directory = baseDirectory.appendingPathComponent("ChatGifs", isDirectory: true)
+        let fileName = (path as NSString).lastPathComponent
         let sandboxPath = directory.appendingPathComponent(fileName).path
-        if FileManager.default.fileExists(atPath: sandboxPath) {
+        if MessageAttachmentFiles.isReadableFile(at: sandboxPath) {
             return sandboxPath
         }
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(atPath: path, toPath: sandboxPath)
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try manager.copyItem(atPath: path, toPath: sandboxPath)
             return sandboxPath
         } catch {
+            if MessageAttachmentFiles.isReadableFile(at: sandboxPath) { return sandboxPath }
             consoleLogInfo("Copy gif from bundle to sandbox failed:\(error.localizedDescription)", type: .error)
             return path
+        }
+    }
+
+    static func repairBundledGifPathForRetry(in message: ChatMessage) {
+        guard ProcessInfo.processInfo.isiOSAppOnMac,
+              let body = message.body as? ChatImageMessageBody, body.isGif,
+              let path = body.localPath,
+              let displayName = body.displayName,
+              path.hasSuffix("/Documents/ChatGifs/\(displayName)"),
+              (displayName as NSString).pathExtension == "gif" else { return }
+        let resourceName = (displayName as NSString).deletingPathExtension
+        guard Int(resourceName) != nil,
+              let source = Bundle.chatBundle.path(forResource: resourceName, ofType: "gif") else { return }
+        let stagedPath = self.sandboxGifPathIfNeeded(for: source)
+        if stagedPath != source {
+            body.localPath = stagedPath
         }
     }
     

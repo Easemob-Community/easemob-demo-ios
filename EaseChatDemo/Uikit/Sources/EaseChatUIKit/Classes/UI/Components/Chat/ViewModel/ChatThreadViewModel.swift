@@ -498,6 +498,7 @@ extension ChatThreadViewModel: MessageListViewActionEventsDelegate {
     }
     
     @objc open func retrySendMessage(entity: MessageEntity) {
+        MessageInputEmojiView.repairBundledGifPathForRetry(in: entity.message)
         self.driver?.updateMessageStatus(message: entity.message, status: .sending)
         self.chatService?.send(message: entity.message, completion: { error, message in
             if error == nil {

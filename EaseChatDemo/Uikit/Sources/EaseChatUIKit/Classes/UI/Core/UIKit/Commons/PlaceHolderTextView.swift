@@ -12,6 +12,7 @@ import UIKit
  A subclass of UITextView that provides a placeholder text when the text view is empty.
  */
 @objcMembers public class PlaceHolderTextView: UITextView {
+    static let singleLineHeight: CGFloat = 36
     
     public var placeHolder: String = "" {
         didSet {
@@ -70,18 +71,33 @@ import UIKit
         if self.hasText {
             return
         }
-        var newRect = rect
-        let size = self.placeHolder.chat.sizeWithText(font: self.font ?? UIFont.theme.bodyLarge, size: rect.size)
-        newRect.size.width = size.width+20
-        newRect.size.height = size.height
-        newRect.origin.x = self.contentInset.left+self.bounds.minX+8
-        newRect.origin.y = self.contentInset.top+self.bounds.minY+(rect.height-size.height)/2.0-4
-        (self.placeHolder as NSString).draw(in: newRect, withAttributes: [.font: self.font ?? UIFont.theme.bodyLarge,.foregroundColor: self.placeHolderColor])
-        self.cornerRadius(Appearance.chat.inputBarCorner)
+        let padding = self.textContainer.lineFragmentPadding
+        var textRect = self.bounds.inset(by: self.textContainerInset)
+        textRect = textRect.insetBy(dx: padding, dy: 0)
+        (self.placeHolder as NSString).draw(in: textRect, withAttributes: [
+            .font: self.font ?? UIFont.theme.bodyLarge,
+            .foregroundColor: self.placeHolderColor,
+            .paragraphStyle: self.typingAttributes[.paragraphStyle] as? NSParagraphStyle ?? NSParagraphStyle.default
+        ])
+    }
+
+    public override func caretRect(for position: UITextPosition) -> CGRect {
+        var rect = super.caretRect(for: position)
+        guard rect.height > 0 else { return rect }
+        let font = self.typingAttributes[.font] as? UIFont ?? self.font ?? UIFont.theme.bodyLarge
+        let height = ceil(font.pointSize)
+        // A wrapped caret can already be on the next line before the field grows.
+        let isFirstLine = rect.minY < self.textContainerInset.top + height
+        let textLift = (self.textContainerInset.bottom - self.textContainerInset.top) / 2
+        let centerY = self.bounds.height == Self.singleLineHeight && isFirstLine ? self.bounds.midY : rect.midY + textLift
+        rect.origin.y = centerY - height / 2
+        rect.size.height = height
+        return rect
     }
     
     public override func layoutSubviews() {
         super.layoutSubviews()
+        self.cornerRadius(Appearance.chat.inputBarCorner)
         self.setNeedsDisplay()
     }
     

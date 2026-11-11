@@ -134,16 +134,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             return true
         }
         //Set the theme of the chat demo UI.
+        Appearance.chat.inputBarCorner = .extraSmall
         if self.theme == 0 {
             Appearance.avatarRadius = .extraSmall
-            Appearance.chat.inputBarCorner = .extraSmall
             Appearance.alertStyle = .small
             Appearance.chat.bubbleStyle = .withArrow
             Appearance.chat.messageLongPressMenuStyle = .withArrow
             Appearance.chat.messageAttachmentMenuStyle = .followInput
         } else {
             Appearance.avatarRadius = .large
-            Appearance.chat.inputBarCorner = .large
             Appearance.alertStyle = .large
             Appearance.chat.bubbleStyle = .withMultiCorner
             Appearance.chat.messageLongPressMenuStyle = .withArrow

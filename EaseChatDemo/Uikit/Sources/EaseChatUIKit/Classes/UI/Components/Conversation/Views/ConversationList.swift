@@ -265,20 +265,26 @@ extension ConversationList: IConversationListDriver {
     }
     
     public func refreshProfiles(infos: [ChatUserProfileProtocol]) {
-        
+        var changed = false
         for suppliedInfo in infos {
             let sdkConversation = ChatClient.shared().chatManager?.getConversationWithConvId(suppliedInfo.id)
             let info = sdkConversation.flatMap { ChatUIKitContext.shared?.conversationProfile(conversation: $0) } ?? suppliedInfo
             if let index = self.indexMap[info.id], let item = self.datas[safe: index] {
-                if !info.nickname.isEmpty {
+                if !info.nickname.isEmpty, item.nickname != info.nickname {
                     item.nickname = info.nickname
+                    changed = true
                 }
-                item.remark = info.remark
-                if !info.avatarURL.isEmpty {
+                if item.remark != info.remark {
+                    item.remark = info.remark
+                    changed = true
+                }
+                if !info.avatarURL.isEmpty, item.avatarURL != info.avatarURL {
                     item.avatarURL = info.avatarURL
+                    changed = true
                 }
             }
         }
+        guard changed else { return }
         DispatchQueue.main.async { [weak self] in
             self?.reloadData()
         }

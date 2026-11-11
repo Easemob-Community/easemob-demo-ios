@@ -229,11 +229,6 @@ extension NewContactRequestController: UITableViewDelegate,UITableViewDataSource
                     self.showToast(toast: error.errorDescription ?? "")
                     return
                 }
-                let conversation = ChatClient.shared().chatManager?.getConversation(userId, type: .chat, createIfNotExist: true)
-                let ext = ["something":("You have added".chat.localize+" "+userId+" "+"to say hello".chat.localize)]
-                let message = ChatMessage(conversationID: userId, body: ChatCustomMessageBody(event: EaseChatUIKit_alert_message, customExt: nil), ext: ext)
-                conversation?.insert(message, error: nil)
-                
                 self.requestFriendInfo(userId: userId)
                 self.requestProfiles()
             }

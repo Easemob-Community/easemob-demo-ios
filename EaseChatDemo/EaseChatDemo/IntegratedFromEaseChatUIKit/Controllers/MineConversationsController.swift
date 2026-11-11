@@ -27,15 +27,17 @@ final class MineConversationsController: ConversationListController {
         NotificationCenter.default.addObserver(self, selector: #selector(refreshOwnAvatar), name: Notification.Name(profile_update_notification), object: nil)
 
         NotificationCenter.default.addObserver(forName: Notification.Name("didUpdateCallEndReason"), object: nil, queue: .main) { [weak self] notification in
-            guard let `self` = self else { return }
-            if let message = notification.object as? ChatMessage {
-                let index = self.conversationList.datas.firstIndex(where: { $0.id == message.conversationId }) ?? 0
-                if index >= 0 {
-                    let conversation = self.conversationList.datas[index]
-                    conversation.lastMessage = message
-                    conversation.showContent = conversation.contentAttribute()
-                    self.conversationList.reloadRows(at: [IndexPath(row: index, section: 0)], with: .none)
-                }
+            guard let self, let messageId = notification.object as? String, !messageId.isEmpty,
+                  let manager = ChatClient.shared().chatManager,
+                  let message = manager.getMessageWithMessageId(messageId),
+                  manager.getConversationWithConvId(message.conversationId)?.latestMessage?.messageId == messageId else { return }
+            if let index = self.conversationList.datas.firstIndex(where: { $0.id == message.conversationId }) {
+                let conversation = self.conversationList.datas[index]
+                conversation.lastMessage = message
+                conversation.showContent = conversation.contentAttribute()
+                self.conversationList.reloadRows(at: [IndexPath(row: index, section: 0)], with: .none)
+            } else {
+                self.viewModel?.onConversationListRefresh()
             }
         }
 

@@ -68,6 +68,7 @@ public typealias DataSyncType = EMDataSyncType
 public typealias LoginExtensionInfo = EMLoginExtensionInfo
 public typealias ChatFetchServerMessagesOption = EMFetchServerMessagesOption
 public typealias MessageReadReceipt = EMMessageReadReceipt
+public typealias ChatConversationDelegate = EMConversationDelegate
 #elseif canImport(AgoraChat)
 import AgoraChat
 public typealias ChatClient = AgoraChatClient
@@ -123,6 +124,7 @@ public typealias DataSyncType = AgoraChatDataSyncType
 public typealias LoginExtensionInfo = AgoraChatLoginExtensionInfo
 public typealias ChatFetchServerMessagesOption = AgoraChatFetchServerMessagesOption
 public typealias MessageReadReceipt = AgoraChatMessageReadReceipt
+public typealias ChatConversationDelegate = AgoraChatConversationDelegate
 #endif
 
 
