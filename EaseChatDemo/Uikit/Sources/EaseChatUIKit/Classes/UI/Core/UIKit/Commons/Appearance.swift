@@ -210,10 +210,10 @@ import UIKit
         set {}
     }
     
-    /// The color of the sender of the text message.
+    /// The color of the sender of the translated text.
     public var sendTranslationColor: UIColor {
         get {
-            Theme.style == .dark ? UIColor.theme.neutralSpecialColor2:UIColor.theme.neutralSpecialColor95
+            Theme.style == .dark ? UIColor.theme.neutralColor7:UIColor.theme.neutralColor5
         }
         set {}
     }
