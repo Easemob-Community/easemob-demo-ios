@@ -114,7 +114,7 @@ extension ColorSettingViewController: UITableViewDelegate,UITableViewDataSource 
             color = UIColor(hue: Appearance.neutralHue, saturation: 0.08, lightness: 50/100.0, alpha: 1)
         case 4:
             Appearance.neutralSpecialHue = hue
-            Appearance.chat.sendTranslationColor = Theme.style == .dark ? UIColor.theme.neutralSpecialColor2:UIColor.theme.neutralSpecialColor95
+            Appearance.chat.sendTranslationColor = Theme.style == .dark ? UIColor.theme.neutralColor7:UIColor.theme.neutralColor5
             color = UIColor(hue: Appearance.neutralSpecialHue, saturation: 0.36, lightness: 50/100.0, alpha: 1)
         default:
             break
